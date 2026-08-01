@@ -44,6 +44,9 @@ async def test_deep_scan_encuentra_vulnerabilidades(server):
     assert "cors" in checks, "debería detectar CORS mal configurado"
     assert "http_methods" in checks, "debería detectar métodos HTTP peligrosos"
     assert "csrf" in checks, "debería detectar formularios sin CSRF"
+    assert "secret_scan" in checks, "debería detectar secretos expuestos en el frontend"
+    assert "endpoint_exposure" in checks, "debería detectar swagger/source maps expuestos"
+    assert "rpc_cors" in checks, "debería detectar CORS mal configurado en endpoints RPC"
 
     critico = [f for f in result.findings if f.severity.value == "critico"]
     assert any(f.check == "exposed_files" for f in critico), "debe haber hallazgos críticos"
@@ -59,6 +62,7 @@ async def test_checks_activos_no_pasan_a_mass(server):
         assert "sqli" not in checks, "el modo masivo no debe lanzar payloads activos"
         assert "xss" not in checks
         assert "http_methods" not in checks, "http_methods es activo, no debe ejecutarse en mass"
+        assert "rpc_cors" not in checks, "rpc_cors es activo, no debe ejecutarse en mass"
 
 
 async def test_pagina_segura_no_genera_falsos_positivos(server):

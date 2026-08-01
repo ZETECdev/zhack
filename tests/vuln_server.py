@@ -23,6 +23,8 @@ def build_app() -> web.Application:
                 '<a href="/cors">cors</a> '
                 '<a href="/safe">safe</a>'
                 '<form method="POST" action="/login"><input name="user"><input name="pass"><button type="submit">Login</button></form>'
+                '<script src="/app.js"></script>'
+                '<script>const rpcUrl = "/rpc";</script>'
                 "</body></html>"
             )
         )
@@ -111,6 +113,47 @@ def build_app() -> web.Application:
             headers={"Allow": "GET, POST, HEAD, OPTIONS, PUT, DELETE, TRACE, PATCH"},
         )
 
+    async def app_js(request):
+        # Secretos de PRUEBA construidos por concatenación para que GitHub
+        # push protection no los confunda con claves reales (son ficticios).
+        infura = "https://mainnet.infura.io/v3/" + "0123456789abcdef0123456789abcdef"
+        aws = "AKIA" + "IOSFODNN7EXAMPLE"
+        stripe = "sk_" + "live_51HZaXxExampleTestKey123456"
+        return web.Response(
+            text=(
+                f'window.INFURA = "{infura}";\n'
+                f'window.AWS_KEY = "{aws}";\n'
+                f'window.STRIPE = "{stripe}";\n'
+                "//# sourceMappingURL=/app.js.map\n"
+            ),
+            headers={"Content-Type": "application/javascript"},
+        )
+
+    async def app_js_map(request):
+        return web.Response(
+            text='{"version":3,"file":"app.js","sources":["src/app.ts"],"names":[],"mappings":"AAAA"}'
+        )
+
+    async def swagger(request):
+        return web.Response(
+            text="<html><head><title>Swagger UI</title></head><body><h1>Swagger UI</h1></body></html>"
+        )
+
+    async def rpc_options(request):
+        origin = request.headers.get("Origin", "")
+        resp = web.Response(text="")
+        if origin:
+            resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
+        return resp
+
+    async def rpc_get(request):
+        return web.Response(
+            text='{"jsonrpc":"2.0","id":1,"result":"0x1"}',
+            headers={"Content-Type": "application/json"},
+        )
+
     app.router.add_get("/", index)
     app.router.add_get("/safe", safe)
     app.router.add_get("/.env", env_file)
@@ -126,8 +169,13 @@ def build_app() -> web.Application:
     app.router.add_get("/cors", cors)
     app.router.add_get("/images/", listing)
     app.router.add_get("/err", err500)
+    app.router.add_get("/app.js", app_js)
+    app.router.add_get("/app.js.map", app_js_map)
+    app.router.add_get("/swagger-ui.html", swagger)
+    app.router.add_get("/rpc", rpc_get)
     app.router.add_route("OPTIONS", "/", options_handler)
     app.router.add_route("OPTIONS", "/safe", options_handler)
+    app.router.add_route("OPTIONS", "/rpc", rpc_options)
     return app
 
 

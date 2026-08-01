@@ -16,7 +16,7 @@ python -m zhack batch targets.txt -y   # batch: deep+active against a list of ta
 
 ## Adding a check
 
-Checks subclass `BaseCheck` (`zhack/checks/base.py`) with class attrs `name`, `mass` (runs in mass mode) and `requires_active` (runs only with `deep --active`). Files go in `zhack/checks/passive/` or `zhack/checks/active/`, **and must be registered manually** in `_ALL_CHECK_CLASSES` in `zhack/checks/__init__.py` — unregistered checks silently never run. Checks share one `ScanContext` (see `zhack/core/context.py`); fetch via `ctx.http.fetch(...)` or `ctx.get_main()` (cached). A throwing check only records an error, never aborts the scan.
+Checks subclass `BaseCheck` (`zhack/checks/base.py`) with class attrs `name`, `mass` (runs in mass mode) and `requires_active` (runs only with `deep --active`). Files go in `zhack/checks/passive/` or `zhack/checks/active/`, **and must be registered manually** in `_ALL_CHECK_CLASSES` in `zhack/checks/__init__.py` — unregistered checks silently never run. Checks share one `ScanContext` (see `zhack/core/context.py`); use `ctx.fetch(url)` (cached, prefer this for repeated GETs), `ctx.http.fetch(...)` (uncached, for custom headers/methods) or `ctx.get_main()` (cached main page). A throwing check only records an error, never aborts the scan.
 
 ## Hard constraints (enforced by tests)
 
@@ -27,7 +27,7 @@ Checks subclass `BaseCheck` (`zhack/checks/base.py`) with class attrs `name`, `m
 ## Test gotchas
 
 - Tests scan an **in-process deliberately vulnerable server** (`tests/vuln_server.py` `build_app()` on a random port) — no external target required. Use it to reproduce findings.
-- `test_deep_scan_encuentra_vulnerabilidades` pins check `name` values (`https`, `security_headers`, `cookies`, `exposed_files`, `info_disclosure`, `sqli`, `xss`, `open_redirect`, `traversal`, `cors`, `http_methods`, `csrf`); renaming a check breaks tests. `test_pagina_segura_no_genera_falsos_positivos` requires the `/safe` route to produce zero findings — keep it clean.
+- `test_deep_scan_encuentra_vulnerabilidades` pins check `name` values (`https`, `security_headers`, `cookies`, `exposed_files`, `info_disclosure`, `sqli`, `xss`, `open_redirect`, `traversal`, `cors`, `http_methods`, `csrf`, `secret_scan`, `endpoint_exposure`, `rpc_cors`); renaming a check breaks tests. `test_pagina_segura_no_genera_falsos_positivos` requires the `/safe` route to produce zero findings — keep it clean (no scripts, no forms, no secrets in `/safe`).
 - `normalize_url` semantics are pinned by `test_targets_loader` (bare domain → `https://<domain>/`).
 
 ## Conventions

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from zhack.core.http_client import FetchResult, HttpClient
 from zhack.core.models import Finding, TargetResult
@@ -30,6 +30,19 @@ class ScanContext:
         self.forms: List = []
         self._main: Optional[FetchResult] = None
         self._main_lock = asyncio.Lock()
+        self._fetch_cache: dict = {}
+
+    async def fetch(self, method: str = "GET", url: str = "", headers: Optional[dict] = None) -> FetchResult:
+        """Fetch con caché en memoria (solo GET sin headers personalizados)."""
+        url = url or self.url
+        if method == "GET" and not headers:
+            cached = self._fetch_cache.get(url)
+            if cached is not None:
+                return cached
+        res = await self.http.fetch(method, url, headers=headers)
+        if method == "GET" and not headers and res.ok:
+            self._fetch_cache[url] = res
+        return res
 
     async def get_main(self) -> FetchResult:
         if self._main is None:

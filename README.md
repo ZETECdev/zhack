@@ -71,11 +71,17 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | Listado de directorios | mass + deep | medio |
 | Versión de servidor / tecnología revelada | mass + deep | bajo |
 | Trazas de error / stack traces | mass + deep | alto |
+| Secretos en frontend (AWS, Stripe, GitHub, Infura, Alchemy, claves privadas, mnemónicos...) | mass + deep | crítico/alto |
+| Endpoints expuestos (Swagger, OpenAPI, GraphQL, source maps, paneles admin) | mass + deep | medio/info |
+| Contenido mixto (recursos HTTP en HTTPS) | mass + deep | medio |
+| Formularios POST sin token CSRF | mass + deep | medio |
 | Inyección SQL (detección) | deep `--active` | crítico |
 | XSS reflejado (detección) | deep `--active` | alto |
 | Redirección abierta | deep `--active` | medio |
 | Path traversal | deep `--active` | crítico |
 | CORS mal configurado | deep `--active` | alto/medio |
+| Métodos HTTP peligrosos (TRACE, PUT, DELETE) | deep `--active` | alto/medio |
+| Endpoints RPC con CORS mal configurado / acceso público | deep `--active` | alto/medio |
 
 ## Garantías de seguridad del propio escáner
 
