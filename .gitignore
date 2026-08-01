@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Reportes generados
+reports/
+
+# Tests
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Secretos y configuraciones locales
+.env
+*.env.local
+*.secret
+
+# Logs
+*.log
+
+# Dependencias (no bloquear lockfiles)
+# requirements.txt se commitea — es la fuente de verdad de deps

@@ -1,0 +1,10 @@
+# Formato: una web por línea (dominio o URL completa).
+# Las líneas que empiezan por # se ignoran.
+
+# ---- Prueba local (servidor vulnerable incluido en tests/vuln_server.py) ----
+# http://127.0.0.1:8070
+
+# ---- Ejemplos (¡NO escanees webs que no sean tuyas sin autorización!) ----
+# https://mi-sitio-1.com
+# https://mi-sitio-2.com
+# https://tu-sitio.com
