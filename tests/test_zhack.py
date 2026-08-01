@@ -47,6 +47,10 @@ async def test_deep_scan_encuentra_vulnerabilidades(server):
     assert "secret_scan" in checks, "debería detectar secretos expuestos en el frontend"
     assert "endpoint_exposure" in checks, "debería detectar swagger/source maps expuestos"
     assert "rpc_cors" in checks, "debería detectar CORS mal configurado en endpoints RPC"
+    assert "sri" in checks, "debería detectar scripts de CDN sin integrity"
+    assert "cdn" in checks, "debería detectar el CDN frontal"
+    assert "contract_exposure" in checks, "debería detectar contratos/explorers/configs Web3"
+    assert "rpc_methods" in checks, "debería detectar nodos RPC públicos accesibles"
 
     critico = [f for f in result.findings if f.severity.value == "critico"]
     assert any(f.check == "exposed_files" for f in critico), "debe haber hallazgos críticos"
@@ -63,6 +67,7 @@ async def test_checks_activos_no_pasan_a_mass(server):
         assert "xss" not in checks
         assert "http_methods" not in checks, "http_methods es activo, no debe ejecutarse en mass"
         assert "rpc_cors" not in checks, "rpc_cors es activo, no debe ejecutarse en mass"
+        assert "rpc_methods" not in checks, "rpc_methods es activo, no debe ejecutarse en mass"
 
 
 async def test_pagina_segura_no_genera_falsos_positivos(server):
@@ -72,6 +77,40 @@ async def test_pagina_segura_no_genera_falsos_positivos(server):
     headers_check = {f.check for f in r.findings}
     assert "security_headers" not in headers_check, "/safe tiene todas las cabeceras correctas"
     assert "cookies" not in headers_check, "/safe no envía cookies"
+    assert "sri" not in headers_check, "/safe no carga recursos externos"
+    assert "cdn" not in headers_check, "/safe no revela CDN"
+    assert "contract_exposure" not in headers_check, "/safe no expone contratos ni configs"
+
+
+async def test_dns_sec_detecta_falta_de_spf_y_dmarc(monkeypatch):
+    from zhack.checks.passive.dns_sec import DnsSecurityCheck
+    from zhack.core.http_client import FetchResult
+
+    class FakeCtx:
+        url = "https://example.com/"
+
+        async def get_main(self):
+            return FetchResult(url=self.url, status=200, body=b"<html></html>")
+
+        def __init__(self):
+            self.findings = []
+
+        def add(self, finding):
+            self.findings.append(finding)
+
+    async def fake_txt(self, ctx, name):
+        if name.startswith("_dmarc"):
+            return []
+        return ["v=spf1 -all"]
+
+    monkeypatch.setattr(DnsSecurityCheck, "_txt", fake_txt)
+    ctx = FakeCtx()
+    await DnsSecurityCheck().run(ctx)
+    checks = {f.check for f in ctx.findings}
+    assert "dns_sec" in checks, "debería detectar la falta de DMARC"
+    titles = {f.title for f in ctx.findings}
+    assert any("SPF" not in t for t in titles), "SPF existe, no debe avisar de SPF"
+    assert any("DMARC" in t for t in titles), "debe avisar de la falta de DMARC"
 
 
 async def test_targets_loader():

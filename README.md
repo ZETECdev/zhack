@@ -4,6 +4,8 @@ Escáner de seguridad web en Python con **dos modos**:
 
 - **`mass`** — escanea **miles de webs** a la vez (concurrencia asíncrona) con checks pasivos rápidos.
 - **`deep`** — escaneo profundo de una web con checks pasivos + detección activa inofensiva.
+- **`batch`** — escaneo profundo (todos los checks, pasivos + activos) contra una lista de webs.
+- **`run_all.py`** — archivo principal: ejecuta **todos los checks** contra una lista de webs y consolida reportes (JSON + HTML + opcional CSV).
 
 Genera reportes **HTML** (con severidades y cómo reparar cada fallo) y **JSON** (datos crudos).
 
@@ -30,6 +32,9 @@ python -m zhack deep https://miweb.com -y
 # Escaneo profundo CON detección activa (SQLi/XSS/traversal/CORS — siempre inofensiva)
 python -m zhack deep https://miweb.com --active -y
 
+# TODO el arsenal contra una lista de webs (pasivo + activo, reporte consolidado)
+python run_all.py targets.txt -y --csv
+
 # Ver un reporte generado
 python -m zhack report reports\zhack_mass_20260801_120000.json --open
 ```
@@ -40,6 +45,10 @@ Opciones útiles:
 - `-t 5` — timeout por petición en segundos.
 - `--no-tls` — omite los checks TLS (más rápido).
 - `-o carpeta` — dónde guardar los reportes (por defecto `reports/`).
+- `--csv` — exporta también los hallazgos a CSV (útil para triage en Excel).
+- `--header "Authorization: Bearer xxx"` — header HTTP para todas las peticiones (repetible). Útil para zonas autenticadas.
+- `--cookie "session=abc123"` — cookie de sesión para todas las peticiones.
+- `--no-active` (solo `run_all.py`) — equivale al modo `mass` (solo pasivos).
 - Sin `-y` se muestra la confirmación de autorización antes de escanear.
 
 También puedes instalar el comando global: `pip install -e .` y usar `zhack mass ...` directamente.
@@ -73,6 +82,10 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | Trazas de error / stack traces | mass + deep | alto |
 | Secretos en frontend (AWS, Stripe, GitHub, Infura, Alchemy, claves privadas, mnemónicos...) | mass + deep | crítico/alto |
 | Endpoints expuestos (Swagger, OpenAPI, GraphQL, source maps, paneles admin) | mass + deep | medio/info |
+| Recursos de CDN sin SRI (`integrity`) — riesgo de supply chain | mass + deep | bajo |
+| SPF / DMARC ausentes (anti suplantación de email) | mass + deep | medio |
+| CDN/WAF frontal identificado (reconocimiento) | mass + deep | info |
+| Contratos / block explorers / configs Web3 (Hardhat, Foundry...) expuestos | mass + deep | bajo/info |
 | Contenido mixto (recursos HTTP en HTTPS) | mass + deep | medio |
 | Formularios POST sin token CSRF | mass + deep | medio |
 | Inyección SQL (detección) | deep `--active` | crítico |
@@ -82,6 +95,7 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | CORS mal configurado | deep `--active` | alto/medio |
 | Métodos HTTP peligrosos (TRACE, PUT, DELETE) | deep `--active` | alto/medio |
 | Endpoints RPC con CORS mal configurado / acceso público | deep `--active` | alto/medio |
+| Nodos RPC públicos accesibles y métodos JSON-RPC expuestos (`eth_accounts`, etc.) | deep `--active` | alto/info |
 
 ## Garantías de seguridad del propio escáner
 
@@ -99,7 +113,8 @@ zhack/
 ├── checks/
 │   ├── passive/            # solo lectura de respuestas
 │   └── active/             # detección inofensiva (solo deep --active)
-└── reporting/              # reportes HTML y JSON
+└── reporting/              # reportes HTML, JSON y CSV
+run_all.py                  # ejecuta todos los checks sobre una lista de webs
 tests/vuln_server.py        # servidor vulnerable para pruebas
 tests/test_zhack.py         # tests (pytest)
 ```

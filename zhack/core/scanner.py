@@ -24,6 +24,7 @@ async def deep_scan(url: str, opts: ScanOptions) -> TargetResult:
         timeout=opts.timeout,
         global_concurrency=opts.concurrency,
         max_body=opts.max_body,
+        custom_headers=opts.custom_headers,
     ) as http:
         ctx = ScanContext(url, http, opts, result)
         if opts.active:
@@ -52,6 +53,7 @@ async def mass_scan(
                     timeout=opts.timeout,
                     global_concurrency=opts.concurrency,
                     max_body=opts.max_body,
+                    custom_headers=opts.custom_headers,
                 ) as http:
                     ctx = ScanContext(url, http, opts, result)
                     checks = build_checks(active=False, mass=True)
@@ -81,6 +83,7 @@ async def batch_scan(
                     timeout=opts.timeout,
                     global_concurrency=opts.concurrency,
                     max_body=opts.max_body,
+                    custom_headers=opts.custom_headers,
                 ) as http:
                     ctx = ScanContext(url, http, opts, result)
                     main = await ctx.get_main()

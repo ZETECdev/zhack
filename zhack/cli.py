@@ -18,6 +18,7 @@ from zhack.core.context import ScanOptions
 from zhack.core.models import Severity, TargetResult
 from zhack.core.scanner import batch_scan, deep_scan, mass_scan
 from zhack.core.targets import load_targets, normalize_url
+from zhack.reporting.csv_report import write_csv
 from zhack.reporting.html_report import build_html
 from zhack.reporting.json_report import write_json
 
@@ -30,6 +31,20 @@ _SEV_LABELS = {
     "bajo": "bajas",
     "info": "informativas",
 }
+
+
+def _parse_headers(args) -> dict:
+    headers: dict = {}
+    for item in getattr(args, "header", None) or []:
+        if ":" not in item:
+            console.print(f"[red]Header inválido (se ignora): {item}[/red] (usa \"Nombre: valor\")")
+            continue
+        name, _, value = item.partition(":")
+        headers[name.strip()] = value.strip()
+    cookie = getattr(args, "cookie", None)
+    if cookie:
+        headers["Cookie"] = cookie
+    return headers
 
 
 def _confirm_authorization() -> bool:
@@ -52,7 +67,7 @@ def _confirm_authorization() -> bool:
     return ans in ("s", "si", "sí", "y", "yes")
 
 
-def _save(results, mode: str, output: str):
+def _save(results, mode: str, output: str, with_csv: bool = False):
     out_dir = Path(output)
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -62,6 +77,9 @@ def _save(results, mode: str, output: str):
         fh.write(build_html(results))
     console.print(f"[green]Reporte JSON:[/green] {base}.json")
     console.print(f"[green]Reporte HTML:[/green] {base}.html")
+    if with_csv:
+        write_csv(results, str(base) + ".csv")
+        console.print(f"[green]Reporte CSV:[/green] {base}.csv")
 
 
 def _summary_table(results) -> None:
@@ -122,6 +140,7 @@ def cmd_mass(args) -> None:
         mass=True,
         active=False,
         check_tls=not args.no_tls,
+        custom_headers=_parse_headers(args),
     )
     t0 = time.time()
     with Progress(
@@ -142,7 +161,7 @@ def cmd_mass(args) -> None:
 
     elapsed = time.time() - t0
     _summary_table(results)
-    _save(results, "mass", args.output)
+    _save(results, "mass", args.output, with_csv=args.csv)
     console.print(f"[green]Escaneo terminado en {elapsed:.1f}s.[/green]")
 
 
@@ -162,12 +181,13 @@ def cmd_deep(args) -> None:
         active=args.active,
         mass=False,
         check_tls=not args.no_tls,
+        custom_headers=_parse_headers(args),
     )
     t0 = time.time()
     result = asyncio.run(deep_scan(url, opts))
     elapsed = time.time() - t0
     _findings_table([result])
-    _save([result], "deep", args.output)
+    _save([result], "deep", args.output, with_csv=args.csv)
     console.print(f"[green]Escaneo terminado en {elapsed:.1f}s.[/green]")
 
 
@@ -189,6 +209,7 @@ def cmd_batch(args) -> None:
         active=True,
         mass=False,
         check_tls=not args.no_tls,
+        custom_headers=_parse_headers(args),
     )
     t0 = time.time()
     with Progress(
@@ -209,7 +230,7 @@ def cmd_batch(args) -> None:
 
     elapsed = time.time() - t0
     _summary_table(results)
-    _save(results, "batch", args.output)
+    _save(results, "batch", args.output, with_csv=args.csv)
     _findings_table(results)
     console.print(f"[green]Escaneo terminado en {elapsed:.1f}s.[/green]")
 
@@ -259,6 +280,9 @@ def main(argv=None) -> None:
     p_mass.add_argument("-o", "--output", default="reports", help="Directorio de salida")
     p_mass.add_argument("-y", "--yes", action="store_true", help="Confirma la autorización sin preguntar")
     p_mass.add_argument("--no-tls", action="store_true", help="Desactiva los checks TLS (más rápido)")
+    p_mass.add_argument("--csv", action="store_true", help="Exporta además los hallazgos a CSV")
+    p_mass.add_argument("--header", action="append", metavar='"Nombre: valor"', help="Header HTTP para todas las peticiones (repetible)")
+    p_mass.add_argument("--cookie", metavar="COOKIE", help="Cookie para todas las peticiones, p.ej. \"session=abc123\"")
     p_mass.set_defaults(func=cmd_mass)
 
     p_deep = sub.add_parser("deep", help="Escaneo profundo de una web (pasivo + activo con --active)")
@@ -269,6 +293,9 @@ def main(argv=None) -> None:
     p_deep.add_argument("-o", "--output", default="reports")
     p_deep.add_argument("-y", "--yes", action="store_true", help="Confirma la autorización sin preguntar")
     p_deep.add_argument("--no-tls", action="store_true", help="Desactiva los checks TLS")
+    p_deep.add_argument("--csv", action="store_true", help="Exporta además los hallazgos a CSV")
+    p_deep.add_argument("--header", action="append", metavar='"Nombre: valor"', help="Header HTTP para todas las peticiones (repetible)")
+    p_deep.add_argument("--cookie", metavar="COOKIE", help="Cookie para todas las peticiones, p.ej. \"session=abc123\"")
     p_deep.set_defaults(func=cmd_deep)
 
     p_batch = sub.add_parser("batch", help="Escaneo en lote de muchas webs (deep + checks activos)")
@@ -278,6 +305,9 @@ def main(argv=None) -> None:
     p_batch.add_argument("-o", "--output", default="reports", help="Directorio de salida")
     p_batch.add_argument("-y", "--yes", action="store_true", help="Confirma la autorización sin preguntar")
     p_batch.add_argument("--no-tls", action="store_true", help="Desactiva los checks TLS")
+    p_batch.add_argument("--csv", action="store_true", help="Exporta además los hallazgos a CSV")
+    p_batch.add_argument("--header", action="append", metavar='"Nombre: valor"', help="Header HTTP para todas las peticiones (repetible)")
+    p_batch.add_argument("--cookie", metavar="COOKIE", help="Cookie para todas las peticiones, p.ej. \"session=abc123\"")
     p_batch.set_defaults(func=cmd_batch)
 
     p_report = sub.add_parser("report", help="Resumen de un reporte JSON o HTML generado")

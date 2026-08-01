@@ -24,12 +24,15 @@ def build_app() -> web.Application:
                 '<a href="/safe">safe</a>'
                 '<form method="POST" action="/login"><input name="user"><input name="pass"><button type="submit">Login</button></form>'
                 '<script src="/app.js"></script>'
+                '<script src="https://cdn.example.com/vendor/lib.js"></script>'
+                '<a href="https://etherscan.io/address/0x7A250d5630B4cF539739dF2C5dAcb4c659F2488D">contract</a>'
                 '<script>const rpcUrl = "/rpc";</script>'
                 "</body></html>"
             )
         )
         resp.headers["Server"] = "Apache/2.4.49 (Ubuntu)"
         resp.headers["X-Powered-By"] = "Express/4.18.1"
+        resp.headers["cf-ray"] = "test-ray-1234"
         resp.set_cookie("session", "abc123")
         resp.set_cookie("prefs", "dark", max_age=3600, secure=True, httponly=True, samesite="lax")
         return resp
@@ -119,14 +122,26 @@ def build_app() -> web.Application:
         infura = "https://mainnet.infura.io/v3/" + "0123456789abcdef0123456789abcdef"
         aws = "AKIA" + "IOSFODNN7EXAMPLE"
         stripe = "sk_" + "live_51HZaXxExampleTestKey123456"
+        contract = "0x7A250d" + "5630B4cF539739dF2C5dAcb4c659F2488D"
         return web.Response(
             text=(
                 f'window.INFURA = "{infura}";\n'
                 f'window.AWS_KEY = "{aws}";\n'
                 f'window.STRIPE = "{stripe}";\n'
+                f'window.CONTRACT = "{contract}";\n'
                 "//# sourceMappingURL=/app.js.map\n"
             ),
             headers={"Content-Type": "application/javascript"},
+        )
+
+    async def hardhat_config(request):
+        return web.Response(
+            text=(
+                "module.exports = {\n"
+                "  networks: { sepolia: { url: 'https://sepolia.infura.io' } },\n"
+                "  solidity: '0.8.24',\n"
+                "};\n"
+            )
         )
 
     async def app_js_map(request):
@@ -149,10 +164,12 @@ def build_app() -> web.Application:
         return resp
 
     async def rpc_get(request):
-        return web.Response(
-            text='{"jsonrpc":"2.0","id":1,"result":"0x1"}',
-            headers={"Content-Type": "application/json"},
-        )
+        method = request.query.get("method", "")
+        if method == "eth_accounts":
+            body = '{"jsonrpc":"2.0","id":1,"result":["0x7A250d5630B4cF539739dF2C5dAcb4c659F2488D"]}'
+        else:
+            body = '{"jsonrpc":"2.0","id":1,"result":"0x1"}'
+        return web.Response(text=body, headers={"Content-Type": "application/json"})
 
     app.router.add_get("/", index)
     app.router.add_get("/safe", safe)
@@ -171,6 +188,7 @@ def build_app() -> web.Application:
     app.router.add_get("/err", err500)
     app.router.add_get("/app.js", app_js)
     app.router.add_get("/app.js.map", app_js_map)
+    app.router.add_get("/hardhat.config.js", hardhat_config)
     app.router.add_get("/swagger-ui.html", swagger)
     app.router.add_get("/rpc", rpc_get)
     app.router.add_route("OPTIONS", "/", options_handler)

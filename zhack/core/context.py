@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from zhack.core.http_client import FetchResult, HttpClient
@@ -16,6 +16,7 @@ class ScanOptions:
     mass: bool = False
     check_tls: bool = True
     max_body: int = 250_000
+    custom_headers: Dict[str, str] = field(default_factory=dict)
 
 
 class ScanContext:

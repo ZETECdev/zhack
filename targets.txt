@@ -4,6 +4,11 @@
 # ---- Prueba local (servidor vulnerable incluido en tests/vuln_server.py) ----
 # http://127.0.0.1:8070
 
+# ---- DEX en producción (bug bounty autorizado) ----
+# https://txflow.com
+# https://perps.katana.network
+# https://rise.trade
+
 # ---- Ejemplos (¡NO escanees webs que no sean tuyas sin autorización!) ----
 # https://mi-sitio-1.com
 # https://mi-sitio-2.com
