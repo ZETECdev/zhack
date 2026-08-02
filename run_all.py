@@ -24,9 +24,10 @@ from rich.table import Table
 
 from zhack.core.context import ScanOptions
 from zhack.core.models import Severity, TargetResult
-from zhack.core.scanner import batch_scan, mass_scan
+from zhack.core.scanner import mass_scan, scan_all
 from zhack.core.targets import load_targets
 from zhack.reporting.csv_report import write_csv
+from zhack.reporting.en_report import write_en_report
 from zhack.reporting.html_report import build_html
 from zhack.reporting.json_report import write_json
 
@@ -73,8 +74,10 @@ def _save(results, mode: str, output: str, with_csv: bool = False):
     write_json(results, str(base) + ".json")
     with open(str(base) + ".html", "w", encoding="utf-8") as fh:
         fh.write(build_html(results))
+    write_en_report(results, str(base) + "_en.md")
     console.print(f"[green]Reporte JSON:[/green] {base}.json")
     console.print(f"[green]Reporte HTML:[/green] {base}.html")
+    console.print(f"[green]Reporte EN (bug bounty):[/green] {base}_en.md")
     if with_csv:
         write_csv(results, str(base) + ".csv")
         console.print(f"[green]Reporte CSV:[/green] {base}.csv")
@@ -194,7 +197,7 @@ def main(argv=None) -> None:
         if args.no_active:
             results = asyncio.run(mass_scan(targets, opts, on_target_done=on_done))
         else:
-            results = asyncio.run(batch_scan(targets, opts, on_target_done=on_done))
+            results = asyncio.run(scan_all(targets, opts, on_target_done=on_done))
         progress.update(task, refresh=True)
 
     elapsed = time.time() - t0

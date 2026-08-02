@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable, List, Optional
+from dataclasses import replace
+from typing import Callable, Iterable, List, Optional
 
 from zhack.checks import build_checks
 from zhack.core.context import ScanContext, ScanOptions
 from zhack.core.crawler import extract_candidate_urls, extract_forms
 from zhack.core.http_client import HttpClient
 from zhack.core.models import TargetResult
+from zhack.core.targets import normalize_url
 
 
 async def _run_check(check, ctx: ScanContext) -> None:
@@ -99,3 +101,39 @@ async def batch_scan(
             return result
 
     return list(await asyncio.gather(*[worker(u) for u in targets]))
+
+
+async def scan_all(
+    targets: Iterable[str],
+    opts: Optional[ScanOptions] = None,
+    on_target_done: Optional[Callable[[TargetResult], None]] = None,
+) -> List[TargetResult]:
+    """Ejecuta todos los checks sobre una lista de webs.
+
+    Es la API principal para integraciones: normaliza y deduplica los objetivos,
+    activa los checks pasivos y los activos inofensivos, y devuelve un resultado
+    independiente por web. `opts` es opcional para ajustar timeout, concurrencia,
+    TLS o headers sin cambiar el comportamiento de "todos los checks".
+    """
+    prepared: List[str] = []
+    seen: set[str] = set()
+    for target in targets:
+        normalized = normalize_url(str(target))
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            prepared.append(normalized)
+
+    if not prepared:
+        return []
+
+    options = replace(opts, active=True, mass=False) if opts else ScanOptions(active=True, mass=False)
+    return await batch_scan(prepared, options, on_target_done=on_target_done)
+
+
+def scan_all_sync(
+    targets: Iterable[str],
+    opts: Optional[ScanOptions] = None,
+    on_target_done: Optional[Callable[[TargetResult], None]] = None,
+) -> List[TargetResult]:
+    """Versión síncrona de :func:`scan_all` para scripts sencillos."""
+    return asyncio.run(scan_all(targets, opts=opts, on_target_done=on_target_done))

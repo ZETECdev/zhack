@@ -23,6 +23,9 @@ def result_to_dict(r: TargetResult) -> Dict[str, Any]:
                 "remediacion": f.remediation,
                 "url": f.url,
                 "evidencia": f.evidence,
+                "attacker_impact": f.attacker_impact,
+                "attack_scenario": f.attack_scenario,
+                "safe_validation": f.safe_validation,
             }
             for f in r.findings
         ],

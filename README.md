@@ -53,6 +53,27 @@ Opciones útiles:
 
 También puedes instalar el comando global: `pip install -e .` y usar `zhack mass ...` directamente.
 
+## API principal
+
+Para integrar ZHack en otro programa, basta con pasar una lista. `scan_all` normaliza URLs,
+elimina duplicados y ejecuta siempre todos los checks, incluidos los activos inofensivos:
+
+```python
+from zhack import scan_all
+
+resultados = await scan_all([
+    "https://miweb.com",
+    "https://otra-web.com/login",
+])
+
+for resultado in resultados:
+    print(resultado.url, resultado.max_severity, len(resultado.findings))
+```
+
+En un script síncrono puede usarse `from zhack import scan_all_sync`.
+Opcionalmente se puede pasar `ScanOptions` como segundo argumento para cambiar timeout,
+concurrencia, headers, cookies o desactivar TLS sin desactivar el conjunto de checks.
+
 ## Probar sin riesgo (servidor vulnerable local)
 
 ZHack incluye un servidor local **deliberadamente vulnerable** para que pruebes todo sin tocar webs reales:
@@ -76,6 +97,7 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | Certificado caducado / autofirmado / hostname incorrecto | mass + deep | crítico/alto |
 | Cabeceras ausentes (CSP, HSTS, X-Frame-Options, nosniff...) | mass + deep | medio/bajo |
 | Cookies sin Secure / HttpOnly / SameSite=None | mass + deep | medio/alto |
+| Respuestas con cookies de sesión sin protección de caché | mass + deep | bajo/medio |
 | Archivos expuestos (`.env`, `.git`, backups, `phpinfo`, volcados SQL...) | mass + deep | crítico |
 | Listado de directorios | mass + deep | medio |
 | Versión de servidor / tecnología revelada | mass + deep | bajo |
@@ -88,6 +110,11 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | Contratos / block explorers / configs Web3 (Hardhat, Foundry...) expuestos | mass + deep | bajo/info |
 | Contenido mixto (recursos HTTP en HTTPS) | mass + deep | medio |
 | Formularios POST sin token CSRF | mass + deep | medio |
+| Formularios de contraseña enviados por HTTP | mass + deep | alto |
+| Rutas internas sensibles reveladas en `robots.txt` | mass + deep | info |
+| Posible DOM XSS (fuente controlable + sink peligroso) | mass + deep | medio |
+| Riesgos DEX: `amountOutMin=0`, slippage extrema, approvals ilimitadas y `permit` sin expiración | mass + deep | alto |
+| Patrones peligrosos en Solidity expuesto (`tx.origin`, `selfdestruct`, `delegatecall`, reentrancia, oracle spot) | mass + deep | alto/crítico |
 | Inyección SQL (detección) | deep `--active` | crítico |
 | XSS reflejado (detección) | deep `--active` | alto |
 | Redirección abierta | deep `--active` | medio |
@@ -96,13 +123,19 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | Métodos HTTP peligrosos (TRACE, PUT, DELETE) | deep `--active` | alto/medio |
 | Endpoints RPC con CORS mal configurado / acceso público | deep `--active` | alto/medio |
 | Nodos RPC públicos accesibles y métodos JSON-RPC expuestos (`eth_accounts`, etc.) | deep `--active` | alto/info |
+| Router/factory/vault DEX sin bytecode en el RPC configurado | deep `--active` | alto |
 
 ## Garantías de seguridad del propio escáner
 
 - **Solo peticiones de LECTURA** (`GET`/`HEAD`/`OPTIONS`). Jamás escribe, borra ni modifica nada en una web.
 - **Payloads activos inofensivos**: solo detección (comillas, marcadores de texto). Nunca `UPDATE`/`DELETE`/`DROP`, nunca stacked queries, nunca código que se ejecute en la víctima.
+- **Checks DEX sin mutaciones**: `dex_rpc` solo consulta `eth_getCode` mediante `GET`; no firma transacciones ni llama métodos que cambien estado.
 - **Límites de concurrencia** por host (5 peticiones simultáneas) y global, con timeouts: no satura las webs escaneadas.
 - Confirmación de autorización obligatoria al arrancar.
+
+Los checks DEX son análisis de superficie y heurísticas. Pueden descubrir configuraciones frontend peligrosas,
+direcciones equivocadas y fuentes Solidity expuestas, pero no sustituyen una auditoría formal del contrato,
+pruebas con fuzzing ni una revisión on-chain de permisos, proxies, oráculos y economía del protocolo.
 
 ## Estructura
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zhack"
-version = "1.0.0"
+version = "1.2.0"
 description = "ZHack - Escáner de seguridad web (masivo y profundo). Solo para webs propias o autorizadas."
 readme = "README.md"
 requires-python = ">=3.10"

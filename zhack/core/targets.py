@@ -12,12 +12,13 @@ def normalize_url(entry: str) -> str:
     if "://" not in entry:
         entry = "https://" + entry
     parsed = urlparse(entry)
-    if not parsed.hostname:
+    if not parsed.hostname or parsed.scheme not in ("http", "https"):
         return ""
     path = parsed.path or "/"
     if parsed.path in ("", "."):
         path = "/"
-    return f"{parsed.scheme}://{parsed.netloc}{path}"
+    query = f"?{parsed.query}" if parsed.query else ""
+    return f"{parsed.scheme}://{parsed.netloc}{path}{query}"
 
 
 def load_targets(path: str) -> List[str]:

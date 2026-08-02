@@ -19,6 +19,8 @@ python run_all.py targets.txt -y --csv # all checks (passive+active), consolidat
 
 Checks subclass `BaseCheck` (`zhack/checks/base.py`) with class attrs `name`, `mass` (runs in mass mode) and `requires_active` (runs only with `deep --active`). Files go in `zhack/checks/passive/` or `zhack/checks/active/`, **and must be registered manually** in `_ALL_CHECK_CLASSES` in `zhack/checks/__init__.py` — unregistered checks silently never run. Checks share one `ScanContext` (see `zhack/core/context.py`); use `ctx.fetch(url)` (cached, prefer this for repeated GETs), `ctx.http.fetch(...)` (uncached, for custom headers/methods) or `ctx.get_main()` (cached main page). A throwing check only records an error, never aborts the scan.
 
+Web3/DEX/wallet-oriented checks: `dex_security`, `contract_exposure`, `wallet_security` (blind signing, Web Storage secrets, ws://, cleartext RPC, clipboard, auto-connect), `web3_supply_chain` (EOL/unpinned/compromised web3 libs from CDNs, e.g. Solana 1.95.8), `bucket_exposure` (listable S3/GCS/Azure/DO Spaces/R2/B2/OSS/COS/Wasabi), `seed_harvest` (CRITICAL: pages asking for seed phrases/private keys), plus active `dex_rpc` (bytecode + frontend chainId vs RPC chainId), `rpc_cors`, `rpc_methods`. Frontend-source collection helpers live in `zhack/checks/dex_common.py`. Every check needs: (1) an entry in `zhack/checks/english_guidance.py` `_GUIDANCE` (short EN impact/scenario/validation embedded in the Finding), and (2) an `Advisory` in `zhack/reporting/en_advisories.py` (full EN bug-bounty write-up: description, business risk, criminal example, fix, references) — title-keyword dispatch is used for multi-finding checks like `dex_security`/`wallet_security`/`secret_scan`/`web3_supply_chain`.
+
 ## Hard constraints (enforced by tests)
 
 - `HttpClient` (`zhack/core/http_client.py`) refuses any method outside `READ_ONLY_METHODS` (`GET`/`HEAD`/`OPTIONS`) — never add mutating requests.
@@ -27,8 +29,8 @@ Checks subclass `BaseCheck` (`zhack/checks/base.py`) with class attrs `name`, `m
 
 ## Test gotchas
 
-- Tests scan an **in-process deliberately vulnerable server** (`tests/vuln_server.py` `build_app()` on a random port) — no external target required. Use it to reproduce findings.
-- `test_deep_scan_encuentra_vulnerabilidades` pins check `name` values (`https`, `security_headers`, `cookies`, `exposed_files`, `info_disclosure`, `sqli`, `xss`, `open_redirect`, `traversal`, `cors`, `http_methods`, `csrf`, `secret_scan`, `endpoint_exposure`, `rpc_cors`, `sri`, `cdn`, `contract_exposure`, `rpc_methods`); renaming a check breaks tests. `test_pagina_segura_no_genera_falsos_positivos` requires the `/safe` route to produce zero findings — keep it clean (no scripts, no forms, no secrets, no CDN headers, no external resources in `/safe`).
+- Tests scan an **in-process deliberately vulnerable server** (`tests/vuln_server.py` `build_app()` on a random port) — no external target required. Use it to reproduce findings. Extra routes: `/dapp` (insecure Web3/wallet frontend: eth_sign, personal_sign, Web Storage secrets, ws://, cleartext RPC, auto-connect, seed-harvest form — for `wallet_security`/`seed_harvest`) and `/graphql` (introspection enabled).
+- `test_deep_scan_encuentra_vulnerabilidades` pins check `name` values (`https`, `security_headers`, `cookies`, `exposed_files`, `info_disclosure`, `sqli`, `xss`, `open_redirect`, `traversal`, `cors`, `http_methods`, `csrf`, `secret_scan`, `endpoint_exposure`, `rpc_cors`, `sri`, `cdn`, `contract_exposure`, `rpc_methods`); renaming a check breaks tests. `test_pagina_segura_no_genera_falsos_positivos` requires the `/safe` route to produce zero findings — keep it clean (no scripts, no forms, no secrets, no CDN headers, no external resources in `/safe`; the test also asserts the new `wallet_security`/`web3_supply_chain`/`bucket_exposure` checks stay silent there). `wallet_security`, `web3_supply_chain`, `bucket_exposure`, GraphQL introspection and the EN report have their own dedicated tests.
 - `dns_sec` needs external DNS (DoH to cloudflare-dns.com) and skips IP/localhost targets; it's unit-tested in `test_dns_sec_detecta_falta_de_spf_y_dmarc` via a monkeypatched `_txt` (no network in the suite).
 - `normalize_url` semantics are pinned by `test_targets_loader` (bare domain → `https://<domain>/`).
 
@@ -36,4 +38,4 @@ Checks subclass `BaseCheck` (`zhack/checks/base.py`) with class attrs `name`, `m
 
 - All user-facing strings, docstrings, and report content are in **Spanish**; new code should match.
 - Findings are created via `BaseCheck.make()` (truncates evidence to 400 chars).
-- Reports are written to `reports/` (gitignored) as timestamped `zhack_{mode}_{stamp}.json` + `.html`.
+- Reports are written to `reports/` (gitignored) as timestamped `zhack_{mode}_{stamp}.json` + `.html` + `_en.md`. The `_en.md` file is the full English bug-bounty report (`zhack/reporting/en_report.py` + `en_advisories.py`): per finding it explains the bug, the business risk if unfixed, a high-level criminal attack example, the remediation and CWE/OWASP references. It is always generated by `mass`/`deep`/`batch`/`run_all.py` (no flag needed).

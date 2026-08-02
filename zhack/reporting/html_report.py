@@ -58,10 +58,15 @@ def build_html(results: List[TargetResult], generated: str = "") -> str:
                 <tr>
                   <td>{_badge(f.severity)}</td>
                   <td class="mono">{_esc(f.check)}</td>
-                  <td>
-                    <strong>{_esc(f.title)}</strong>
-                    <div class="desc">{_esc(f.description)}</div>
-                    {"<div class='evid'>Evidencia: <code>" + _esc(f.evidence) + "</code></div>" if f.evidence else ""}
+                   <td>
+                     <strong>{_esc(f.title)}</strong>
+                     <div class="desc">{_esc(f.description)}</div>
+                     <div class="en-report">
+                       <div><strong>Attacker impact:</strong> {_esc(f.attacker_impact)}</div>
+                       <div><strong>High-level attack scenario:</strong> {_esc(f.attack_scenario)}</div>
+                       <div><strong>Safe validation and remediation:</strong> {_esc(f.safe_validation)}</div>
+                     </div>
+                     {"<div class='evid'>Evidencia: <code>" + _esc(f.evidence) + "</code></div>" if f.evidence else ""}
                     {"<div class='u'>URL: <code>" + _esc(f.url) + "</code></div>" if f.url and f.url != r.url else ""}
                   </td>
                   <td class="fix">{_esc(f.remediation)}</td>
@@ -117,8 +122,10 @@ def build_html(results: List[TargetResult], generated: str = "") -> str:
   table {{ width: 100%; border-collapse: collapse; }}
   th {{ text-align: left; font-size: 12px; text-transform: uppercase; color: #8b93a7; padding: 10px 18px; border-top: 1px solid #232c44; }}
   td {{ padding: 12px 18px; border-top: 1px solid #20283d; vertical-align: top; font-size: 14px; }}
-  .desc {{ color: #aab3c7; margin-top: 4px; font-size: 13px; }}
-  .evid {{ margin-top: 6px; font-size: 12px; color: #8b93a7; }}
+   .desc {{ color: #aab3c7; margin-top: 4px; font-size: 13px; }}
+   .en-report {{ margin-top: 10px; padding: 10px 12px; background: #111827; border-left: 3px solid #6c8cff; color: #d7def0; font-size: 13px; line-height: 1.5; }}
+   .en-report strong {{ color: #9fb5ff; }}
+   .evid {{ margin-top: 6px; font-size: 12px; color: #8b93a7; }}
   .u {{ font-size: 12px; color: #8b93a7; }}
   .fix {{ color: #7ee0a3; font-size: 13px; }}
   code {{ background: #0f1420; padding: 2px 6px; border-radius: 4px; font-size: 12px; word-break: break-all; }}

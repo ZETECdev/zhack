@@ -155,9 +155,29 @@ class EndpointExposureCheck(BaseCheck):
             )
             if is_real:
                 ctx.add(
-                    self.make(ctx, Severity.MEDIUM, title, description, remediation,
+                    self.make(
+                        ctx,
+                        Severity.MEDIUM,
+                        "Endpoint GraphQL expuesto",
+                        "Se detecta un endpoint GraphQL accesible públicamente; puede revelar el esquema y ampliar la superficie de ataque de la API.",
+                        "Protege GraphQL con autenticación, limita la introspección en producción y aplica límites de velocidad.",
                               url=base + path, evidence=f"HTTP {res.status}")
                 )
+                probe = await ctx.fetch(
+                    "GET", base + path + "?query=%7B__schema%7Btypes%7Bname%7D%7D%7D"
+                )
+                if probe.ok and probe.body and b"__schema" in probe.body:
+                    ctx.add(
+                        self.make(
+                            ctx,
+                            Severity.MEDIUM,
+                            "Introspección de GraphQL habilitada en producción",
+                            "El endpoint responde a consultas de introspección (__schema): cualquiera puede descargar el esquema completo de la API (tipos, queries, mutations) y usarlo para localizar operaciones privilegiadas o campos sensibles.",
+                            "Desactiva la introspección en producción, aplica autenticación y control de acceso por campo, y limita la profundidad/complejidad de las consultas.",
+                            url=base + path,
+                            evidence="La consulta {__schema{types{name}}} devolvió datos del esquema",
+                        )
+                    )
 
         if not main.ok or not main.body:
             return

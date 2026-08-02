@@ -37,6 +37,9 @@ class Finding:
     remediation: str
     url: str = ""
     evidence: str = ""
+    attacker_impact: str = ""
+    attack_scenario: str = ""
+    safe_validation: str = ""
 
 
 @dataclass

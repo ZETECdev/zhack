@@ -154,6 +154,44 @@ def build_app() -> web.Application:
             text="<html><head><title>Swagger UI</title></head><body><h1>Swagger UI</h1></body></html>"
         )
 
+    async def dapp(request):
+        return web.Response(
+            text=(
+                "<html><head><title>ZHack Test DApp</title></head><body>"
+                "<h1>Wallet test dapp</h1>"
+                "<script>"
+                "async function connect() {"
+                '  const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });'
+                '  await window.ethereum.request({ method: "eth_sign", params: [accounts[0], "0xdeadbeef"] });'
+                '  await window.ethereum.request({ method: "personal_sign", params: ["Login to dapp", accounts[0]] });'
+                '  localStorage.setItem("privateKey", userInput);'
+                '  const feed = new WebSocket("ws://stream.example.com/prices");'
+                '  const rpc = "http://rpc.miapp.com/v3/";'
+                "  navigator.clipboard.writeText(accounts[0]);"
+                "}"
+                'window.addEventListener("load", () => { window.ethereum.request({ method: "eth_requestAccounts" }); });'
+                "</script>"
+                '<form method="POST" action="/recover"><input name="email">'
+                '<textarea name="seed_phrase" placeholder="Enter your 12 word seed phrase"></textarea>'
+                '<button type="submit">Recover wallet</button></form>'
+                "</body></html>"
+            ),
+            headers={"Content-Type": "text/html"},
+        )
+
+    async def graphql(request):
+        query = request.query.get("query", "")
+        if "__schema" in query:
+            return web.Response(
+                text='{"data":{"__schema":{"queryType":{"name":"Query"},"types":[{"name":"Query"}]}}}',
+                headers={"Content-Type": "application/json"},
+            )
+        return web.Response(
+            status=400,
+            text='{"errors":[{"message":"Must provide a query string."}]}',
+            headers={"Content-Type": "application/json"},
+        )
+
     async def rpc_options(request):
         origin = request.headers.get("Origin", "")
         resp = web.Response(text="")
@@ -190,6 +228,8 @@ def build_app() -> web.Application:
     app.router.add_get("/app.js.map", app_js_map)
     app.router.add_get("/hardhat.config.js", hardhat_config)
     app.router.add_get("/swagger-ui.html", swagger)
+    app.router.add_get("/dapp", dapp)
+    app.router.add_get("/graphql", graphql)
     app.router.add_get("/rpc", rpc_get)
     app.router.add_route("OPTIONS", "/", options_handler)
     app.router.add_route("OPTIONS", "/safe", options_handler)

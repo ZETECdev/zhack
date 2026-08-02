@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from zhack.checks.base import BaseCheck
 from zhack.core.models import Severity
 
@@ -125,6 +127,46 @@ _EXPOSED_PATHS = [
         "Elimínalo o bloquea el acceso a archivos ocultos.",
     ),
     (
+        "/.npmrc",
+        b"_authToken|registry=|//.*:_auth",
+        Severity.HIGH,
+        "Configuración de npm expuesta",
+        "El archivo .npmrc puede contener tokens de registro privado o credenciales de publicación.",
+        "Elimina el archivo del webroot, revoca los tokens y usa un gestor de secretos en CI/CD.",
+    ),
+    (
+        "/.aws/credentials",
+        b"aws_access_key_id|aws_secret_access_key",
+        Severity.CRITICAL,
+        "Credenciales de AWS expuestas",
+        "El archivo de credenciales de AWS es accesible públicamente y puede comprometer la cuenta cloud.",
+        "Bloquea archivos ocultos, revoca las claves y audita la cuenta de AWS inmediatamente.",
+    ),
+    (
+        "/.svn/entries",
+        b"svn|dir|revision",
+        Severity.HIGH,
+        "Repositorio Subversion expuesto",
+        "Se puede leer metadatos del repositorio Subversion y potencialmente reconstruir código fuente.",
+        "Bloquea /.svn en el servidor y elimina el directorio del webroot de producción.",
+    ),
+    (
+        "/Dockerfile",
+        b"FROM|RUN|COPY|EXPOSE",
+        Severity.LOW,
+        "Dockerfile expuesto",
+        "El Dockerfile revela la imagen base, dependencias y estructura interna del despliegue.",
+        "No sirvas archivos de build desde el webroot y revisa que no contengan secretos.",
+    ),
+    (
+        "/docker-compose.yml",
+        b"services:|version:|environment:",
+        Severity.MEDIUM,
+        "Configuración Docker Compose expuesta",
+        "La configuración de Compose puede revelar servicios internos, puertos y variables sensibles.",
+        "Elimina el archivo del contenido público y rota cualquier secreto que contenga.",
+    ),
+    (
         "/crossdomain.xml",
         b"cross-domain-policy",
         Severity.LOW,
@@ -137,6 +179,12 @@ _EXPOSED_PATHS = [
 _LISTING_PATHS = ["/images/", "/css/", "/js/", "/backups/", "/uploads/"]
 
 
+def _matches_pattern(pattern: bytes, body: bytes) -> bool:
+    """Trata el separador | de las firmas como alternativas literales."""
+    lowered = body.lower()
+    return any(part.strip().lower() in lowered for part in pattern.split(b"|"))
+
+
 class ExposedFilesCheck(BaseCheck):
     """Busca archivos sensibles expuestos y listados de directorio."""
 
@@ -147,7 +195,7 @@ class ExposedFilesCheck(BaseCheck):
         base = ctx.url.rstrip("/")
         for path, pattern, severity, title, description, remediation in _EXPOSED_PATHS:
             res = await ctx.http.fetch("GET", base + path)
-            if res.ok and res.status == 200 and pattern.lower() in res.body.lower():
+            if res.ok and res.status == 200 and _matches_pattern(pattern, res.body):
                 ctx.add(
                     self.make(
                         ctx,

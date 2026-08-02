@@ -48,6 +48,20 @@ _PATTERNS: List[Tuple[re.Pattern, Severity, str, str, str]] = [
         "Se detecta una cadena de 12 palabras en minúsculas entre comillas en el código. Podría ser una frase semilla de wallet. Requiere verificación manual.",
         "Si es una frase semilla real: mueve los fondos y elimínala del código. Verifica manualmente antes de reportar.",
     ),
+    (
+        re.compile(r'[\'"]([a-z]{3,8}(?: [a-z]{3,8}){23})[\'"]'),
+        Severity.HIGH,
+        "Posible frase semilla BIP39 (24 palabras)",
+        "Se detecta una cadena de 24 palabras en minúsculas entre comillas en el código. Podría ser una frase semilla de wallet. Requiere verificación manual.",
+        "Si es una frase semilla real: mueve los fondos y elimínala del código. Verifica manualmente antes de reportar.",
+    ),
+    (
+        re.compile(r"\b[xyz]prv[1-9A-HJ-NP-Za-km-z]{100,112}\b"),
+        Severity.CRITICAL,
+        "Clave privada extendida (xprv/yprv/zprv) expuesta",
+        "Una clave privada extendida BIP32 está embebida en el código público: deriva todas las claves y direcciones de la wallet. Equivale a entregar todos los fondos presentes y futuros.",
+        "Rota la wallet completa (todas las direcciones derivadas), mueve los fondos y elimina la clave del código y del historial.",
+    ),
     # ---- Proveedores RPC Web3 (claves API) ----
     (
         re.compile(r"infura\.io/v3/([0-9a-fA-F]{32})"),
