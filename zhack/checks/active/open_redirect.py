@@ -30,6 +30,17 @@ _EVIL_HOST = "openredirect.zhack.local"
 _REDIRECT_STATUS = (301, 302, 303, 307, 308)
 
 
+def _is_open_redirect(location: str) -> bool:
+    """El marcador debe estar en el destino (host o path), no solo reflejado
+    en la query de una redirección canónica que preserva parámetros."""
+    if not location:
+        return False
+    parsed = urlparse(location)
+    if _EVIL_HOST in parsed.netloc:
+        return True
+    return _EVIL_HOST in parsed.path
+
+
 class OpenRedirectCheck(BaseCheck):
     """Detecta redirecciones abiertas (usadas para phishing)."""
 
@@ -37,6 +48,7 @@ class OpenRedirectCheck(BaseCheck):
     requires_active = True
 
     async def run(self, ctx) -> None:
+        reported: set[str] = set()
         for candidate in ctx.candidates:
             parsed = urlparse(candidate)
             params = parse_qsl(parsed.query, keep_blank_values=True)
@@ -46,20 +58,23 @@ class OpenRedirectCheck(BaseCheck):
                 for key, value in params:
                     if key.lower() in _REDIRECT_PARAMS:
                         tested = True
-                        await self._probe(ctx, parsed, params, key)
+                        await self._probe(ctx, parsed, params, key, reported)
             else:
                 for key in _REDIRECT_PARAMS[:5]:
-                    if await self._probe_new(ctx, parsed, key):
+                    if await self._probe_new(ctx, parsed, key, reported):
                         break
 
-    async def _probe(self, ctx, parsed, params, key) -> None:
+    async def _probe(self, ctx, parsed, params, key, reported) -> None:
+        if key.lower() in reported:
+            return
         test = f"https://{_EVIL_HOST}/{key}"
         query = urlencode([(k, test if k == key else v) for k, v in params], doseq=True)
         probe_url = urlunparse(parsed._replace(query=query))
         res = await ctx.http.fetch("GET", probe_url, allow_redirects=False)
         if res.ok and res.status in _REDIRECT_STATUS:
             location = res.headers.get("location", "")
-            if _EVIL_HOST in location:
+            if _is_open_redirect(location):
+                reported.add(key.lower())
                 ctx.add(
                     self.make(
                         ctx,
@@ -72,13 +87,16 @@ class OpenRedirectCheck(BaseCheck):
                     )
                 )
 
-    async def _probe_new(self, ctx, parsed, key) -> bool:
+    async def _probe_new(self, ctx, parsed, key, reported) -> bool:
+        if key.lower() in reported:
+            return False
         test = f"https://{_EVIL_HOST}/test"
         probe_url = urlunparse(parsed._replace(query=urlencode({key: test})))
         res = await ctx.http.fetch("GET", probe_url, allow_redirects=False)
         if res.ok and res.status in _REDIRECT_STATUS:
             location = res.headers.get("location", "")
-            if _EVIL_HOST in location:
+            if _is_open_redirect(location):
+                reported.add(key.lower())
                 ctx.add(
                     self.make(
                         ctx,

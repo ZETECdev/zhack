@@ -130,7 +130,7 @@ class EndpointExposureCheck(BaseCheck):
             if res.status in (404, None):
                 continue
             if expected is not None:
-                if res.ok and res.body and re.search(expected, res.body, re.I):
+                if res.status == 200 and res.body and re.search(expected, res.body, re.I):
                     ctx.add(
                         self.make(ctx, severity, title, description, remediation,
                                   url=base + path, evidence=f"HTTP {res.status}")
@@ -150,7 +150,7 @@ class EndpointExposureCheck(BaseCheck):
                 continue
             content_type = (res.headers.get("content-type", "") if res.headers else "") or ""
             is_html = "text/html" in content_type
-            is_real = (res.ok and res.body and re.search(b"graphql", res.body, re.I)) or (
+            is_real = (res.status == 200 and res.body and re.search(b"graphql", res.body, re.I)) or (
                 res.status in (400, 405) and not is_html
             )
             if is_real:
@@ -166,7 +166,7 @@ class EndpointExposureCheck(BaseCheck):
                 probe = await ctx.fetch(
                     "GET", base + path + "?query=%7B__schema%7Btypes%7Bname%7D%7D%7D"
                 )
-                if probe.ok and probe.body and b"__schema" in probe.body:
+                if probe.status == 200 and probe.body and b'"__schema"' in probe.body:
                     ctx.add(
                         self.make(
                             ctx,

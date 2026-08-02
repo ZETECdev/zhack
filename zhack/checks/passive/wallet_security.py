@@ -31,7 +31,10 @@ _STORAGE_TOKEN_RE = re.compile(
     _STORAGE_RE + r"[^\"']*(?:auth[_-]?token|access[_-]?token|jwt|session[_-]?token|id[_-]?token)[^\"']*",
     re.I,
 )
-_CLEARTEXT_WS_RE = re.compile(r"\bws://[^\s\"'<>]{3,120}", re.I)
+_CLEARTEXT_WS_RE = re.compile(
+    r"\bws://(?!(?:localhost|127\.0\.0\.1|0\.0\.0\.0|::1)(?:[:/]|$))[^\s\"'<>]{3,120}",
+    re.I,
+)
 _CLIPBOARD_RE = re.compile(r"navigator\s*\.\s*clipboard\s*\.\s*writeText")
 _CLEARTEXT_RPC_RE = re.compile(
     r"(?<!s)http://[^\s\"'<>]{0,40}?"

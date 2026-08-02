@@ -292,6 +292,45 @@ async def test_bucket_exposure_detecta_listado_publico():
     assert "S3 bucket" in labels and "DigitalOcean" in labels, "debe cubrir varios proveedores"
 
 
+async def test_checks_web3_soportan_scripts_externos():
+    from zhack.checks.dex_common import collect_frontend_sources
+    from zhack.checks.passive.wallet_security import WalletSecurityCheck
+    from zhack.core.http_client import FetchResult
+
+    html = (
+        '<html><head><script src="https://cdn.example/app.js"></script></head>'
+        '<body><script>'
+        "window.ethereum.request({ method: 'eth_sign', params: [accounts[0], msg] });"
+        "</script></body></html>"
+    )
+
+    class FakeCtx:
+        url = "https://dex.example/"
+
+        def __init__(self):
+            self.findings = []
+
+        async def get_main(self):
+            return FetchResult(url=self.url, status=200, body=html.encode())
+
+        async def fetch(self, method, url, headers=None):
+            if "cdn.example" in url:
+                return FetchResult(url=url, status=200, body=b"window.ethereum = {};")
+            return FetchResult(url=url, status=404, body=b"")
+
+        def add(self, finding):
+            self.findings.append(finding)
+
+    ctx = FakeCtx()
+    sources = await collect_frontend_sources(ctx, html)
+    assert len(sources) >= 2, "debe recoger el script externo sin lanzar TypeError"
+    await WalletSecurityCheck().run(ctx)
+    assert any(
+        f.check == "wallet_security" and "eth_sign" in f.title.lower()
+        for f in ctx.findings
+    ), "con scripts externos el check debe seguir detectando eth_sign"
+
+
 async def test_seed_harvest_detecta_formularios_que_piden_la_semilla():
     from zhack.checks.passive.seed_harvest import SeedHarvestCheck
     from zhack.core.http_client import FetchResult

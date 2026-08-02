@@ -37,6 +37,14 @@ _USER_CONTROL_RE = re.compile(
     re.I,
 )
 _SPENDER_RE = re.compile(r"\b(?:approve|permit|spender|router|permit2)\b", re.I)
+_SPENDER_FROM_INPUT_RE = re.compile(
+    r"(?:router|spender|routerAddress|factory|vault)\w*\s*[:=]\s*"
+    r"(?:new\s+URLSearchParams|location\.(?:search|hash)|searchParams\.get|"
+    r"(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|\[))"
+    r"|approve\s*\([^;\n)]{0,200}?(?:location\.(?:search|hash)|searchParams\.get|"
+    r"(?:localStorage|sessionStorage)\s*\.\s*(?:getItem|\[))",
+    re.I,
+)
 _SOLIDITY_RE = re.compile(r"\b(?:pragma\s+solidity|contract\s+\w+|interface\s+\w+)\b", re.I)
 _TX_ORIGIN_RE = re.compile(r"\btx\.origin\b", re.I)
 _SELFDESTRUCT_RE = re.compile(r"\bselfdestruct\s*\(", re.I)
@@ -128,16 +136,16 @@ class DexSecurityCheck(BaseCheck):
             text,
         )
 
-        if "spender_configurable" not in reported and _USER_CONTROL_RE.search(text) and _SPENDER_RE.search(text):
+        if "spender_configurable" not in reported and _SPENDER_FROM_INPUT_RE.search(text):
             reported.add("spender_configurable")
             ctx.add(
                 self.make(
                     ctx,
                     Severity.HIGH,
                     "Router o spender DEX influido por entrada del navegador",
-                    "El código combina una dirección de router/spender o una aprobación con datos procedentes de URL, storage o parámetros del navegador. Si no existe una whitelist estricta, puede dirigir fondos a un contrato malicioso.",
+                    "El código asigna un router/spender o construye una aprobación a partir de datos procedentes de URL, storage o parámetros del navegador. Si no existe una whitelist estricta, puede dirigir fondos a un contrato malicioso.",
                     "Usa una whitelist inmutable de routers por chainId, valida checksum y código desplegado, y nunca tomes el spender desde querystring o localStorage sin validación criptográfica.",
-                    evidence=self._evidence(text, _USER_CONTROL_RE),
+                    evidence=self._evidence(text, _SPENDER_FROM_INPUT_RE),
                 )
             )
 

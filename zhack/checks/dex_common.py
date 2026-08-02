@@ -26,7 +26,7 @@ _FRONTEND_HINT_RE = re.compile(
 )
 _SCRIPT_RE = re.compile(r"<script\b[^>]*>(.*?)</script\s*>", re.I | re.S)
 _SCRIPT_SRC_RE = re.compile(
-    r"<script\b[^>]+\bsrc\s*=\s*([\"'])(.*?)\1", re.I | re.S
+    r"<script\b[^>]+\bsrc\s*=\s*[\"']([^\"']+)[\"']", re.I | re.S
 )
 _SOURCE_MAP_RE = re.compile(r"sourceMappingURL=([^\s\"']+)")
 _RPC_URL_RE = re.compile(

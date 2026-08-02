@@ -26,6 +26,7 @@ class HTTPMethodsCheck(BaseCheck):
     requires_active = True
 
     async def run(self, ctx) -> None:
+        reported: set[str] = set()
         for candidate in ctx.candidates[:5]:
             res = await ctx.http.fetch("OPTIONS", candidate)
             if not res.ok or not res.headers:
@@ -35,7 +36,8 @@ class HTTPMethodsCheck(BaseCheck):
                 continue
             enabled = {m.strip().upper() for m in allow.split(",")}
             for method, (severity, title, description, remediation) in _DANGEROUS_METHODS.items():
-                if method in enabled:
+                if method in enabled and method not in reported:
+                    reported.add(method)
                     ctx.add(
                         self.make(
                             ctx,

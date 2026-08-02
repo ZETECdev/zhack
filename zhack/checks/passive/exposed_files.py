@@ -185,6 +185,13 @@ def _matches_pattern(pattern: bytes, body: bytes) -> bool:
     return any(part.strip().lower() in lowered for part in pattern.split(b"|"))
 
 
+def _looks_like_html(body: bytes) -> bool:
+    """Descarta fallbacks SPA: un archivo sensible real (env/config/sql/zip)
+    nunca comienza con una página HTML."""
+    head = body[:4096].lstrip(b"\xef\xbb\xbf\x20\x09\x0d\x0a").lower()
+    return head.startswith(b"<!doctype") or head.startswith(b"<html")
+
+
 class ExposedFilesCheck(BaseCheck):
     """Busca archivos sensibles expuestos y listados de directorio."""
 
@@ -195,7 +202,7 @@ class ExposedFilesCheck(BaseCheck):
         base = ctx.url.rstrip("/")
         for path, pattern, severity, title, description, remediation in _EXPOSED_PATHS:
             res = await ctx.http.fetch("GET", base + path)
-            if res.ok and res.status == 200 and _matches_pattern(pattern, res.body):
+            if res.ok and res.status == 200 and not _looks_like_html(res.body) and _matches_pattern(pattern, res.body):
                 ctx.add(
                     self.make(
                         ctx,

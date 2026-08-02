@@ -10,8 +10,10 @@ _SERVER_VERSION_RE = re.compile(
 )
 _VERSION_LEAK_RE = re.compile(r"\d+\.\d+(\.\d+)?")
 _STACK_TRACE_RE = re.compile(
-    r"traceback \(|stack trace|fatal error|warning:|notice:|sqlstate|mysql_|ora-\d+|"
-    r"undefined (variable|index|property)|exception thrown|java\.lang\.",
+    r"traceback \(most recent|file \"[^\"]+\", line \d+|\bon line \d+\b|"
+    r"sqlstate\[|mysql_connect|undefined variable|undefined index|"
+    r"java\.lang\.\w+Exception|uncaught (?:exception|typeerror|referenceerror|syntaxerror)|"
+    r"fatal error:\s+\w+",
     re.I,
 )
 
