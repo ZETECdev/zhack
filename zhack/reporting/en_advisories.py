@@ -754,6 +754,88 @@ _ADVISORIES: Dict[str, Advisory] = {
         ),
         references=("CWE-522: Insufficiently Protected Credentials", "OWASP A07:2021"),
     ),
+    "host_header": Advisory(
+        title="Host header injection / untrusted host reflection",
+        description=(
+            "The application reflects a client-controlled Host header into a redirect or response. "
+            "If trusted by proxies, URL builders, password-reset flows, or caches, this can turn the "
+            "official application into an attacker-controlled link generator."
+        ),
+        business_risk=(
+            "Users may receive poisoned password-reset or login links, cache entries may be polluted, "
+            "and phishing can appear to originate from the company's domain."
+        ),
+        criminal_example=(
+            "A criminal sends a request with an attacker Host value, obtains a reflected absolute link, "
+            "and distributes it as a trusted password-reset or account-verification URL."
+        ),
+        remediation=(
+            "Allowlist canonical hosts at the edge and application, use configured public origins for "
+            "absolute URLs, validate forwarded-host headers, and review cache behavior in staging."
+        ),
+        references=("CWE-349: Acceptance of Extraneous Untrusted Data", "OWASP Host Header Injection guidance"),
+    ),
+    "jwt_oauth": Advisory(
+        title="Weak JWT or OAuth browser flow",
+        description=(
+            "The public frontend exposes a risky authentication pattern such as an unsigned JWT, "
+            "OAuth implicit access tokens, or bearer tokens read from the URL. Static evidence "
+            "requires backend and provider-side confirmation."
+        ),
+        business_risk=(
+            "A replayed or forged token can lead to account takeover, unauthorized API actions, "
+            "fraudulent withdrawals, and loss of trust in the authentication service."
+        ),
+        criminal_example=(
+            "A criminal captures a token from browser history or tricks a vulnerable backend into "
+            "accepting an unsigned JWT, then uses the normal login/API path as the victim."
+        ),
+        remediation=(
+            "Reject alg=none and unapproved algorithms, validate issuer/audience/expiry/signature, "
+            "use Authorization Code with PKCE, keep tokens out of URLs, and rotate exposed tokens."
+        ),
+        references=("CWE-347: Improper Verification of Cryptographic Signature", "OAuth 2.0 Security BCP", "RFC 8725: JWT Best Current Practices"),
+    ),
+    "upload_surface": Advisory(
+        title="File upload surface requires security review",
+        description=(
+            "A browser form accepts files without all expected transport or client-side declarations. "
+            "This is a review signal, not proof that server-side validation is absent."
+        ),
+        business_risk=(
+            "Weak upload controls can expose private documents, enable stored content injection, or "
+            "place executable files where the application serves them."
+        ),
+        criminal_example=(
+            "A criminal finds an upload route, submits a crafted file, and relies on missing type, "
+            "size, authorization, or storage controls to affect users or obtain server-side access."
+        ),
+        remediation=(
+            "Validate content and authorization server-side, enforce size/type limits, rename files, "
+            "store them outside the webroot, scan where appropriate, and serve them from an isolated origin."
+        ),
+        references=("CWE-434: Unrestricted Upload of File with Dangerous Type", "OWASP File Upload Cheat Sheet"),
+    ),
+    "ssrf_hints": Advisory(
+        title="Potential server-side request forgery input",
+        description=(
+            "The frontend reveals a URL-like input or remote-fetch pattern that may feed a server-side "
+            "request. The scanner intentionally does not probe internal addresses."
+        ),
+        business_risk=(
+            "A confirmed SSRF can expose cloud metadata, internal administration APIs, credentials, and "
+            "network services that are not intended to be internet-facing."
+        ),
+        criminal_example=(
+            "A criminal submits a controlled URL to a remote-fetch feature and uses the server as a proxy "
+            "toward internal services, then pivots with any credentials or metadata returned."
+        ),
+        remediation=(
+            "Prefer an allowlist of exact destinations, validate scheme/host/port after DNS resolution, "
+            "block private and link-local ranges and redirects, and enforce outbound network policy."
+        ),
+        references=("CWE-918: Server-Side Request Forgery", "OWASP SSRF Prevention Cheat Sheet"),
+    ),
 }
 
 

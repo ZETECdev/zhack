@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 from zhack.checks.base import BaseCheck
 from zhack.core.models import Severity
@@ -23,6 +24,8 @@ class SubresourceIntegrityCheck(BaseCheck):
             return
 
         missing: list = []
+        target = urlparse(ctx.url)
+        target_origin = (target.scheme, target.hostname, target.port or (443 if target.scheme == "https" else 80))
         for m in _TAG_RE.finditer(main.text):
             tag = m.group()
             url_m = _URL_RE.search(tag)
@@ -31,7 +34,13 @@ class SubresourceIntegrityCheck(BaseCheck):
             url = url_m.group(1)
             if not url.startswith(("http://", "https://")):
                 continue
-            if url.startswith(ctx.url.rstrip("/")):
+            resource = urlparse(url)
+            resource_origin = (
+                resource.scheme,
+                resource.hostname,
+                resource.port or (443 if resource.scheme == "https" else 80),
+            )
+            if resource_origin == target_origin:
                 continue
             if _INTEGRITY_RE.search(tag):
                 continue

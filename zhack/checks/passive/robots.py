@@ -21,8 +21,8 @@ class RobotsDisclosureCheck(BaseCheck):
     mass = True
 
     async def run(self, ctx) -> None:
-        base = ctx.url.rstrip("/")
-        res = await ctx.fetch("GET", base + "/robots.txt")
+        robots_url = ctx.url_for("/robots.txt")
+        res = await ctx.fetch("GET", robots_url)
         if not (res.ok and res.status == 200 and res.body):
             return
 
@@ -43,7 +43,7 @@ class RobotsDisclosureCheck(BaseCheck):
                 "robots.txt revela rutas internas sensibles",
                 "robots.txt es público y enumera rutas administrativas, de depuración o de respaldo que podrían facilitar el reconocimiento de la superficie expuesta.",
                 "No uses robots.txt como control de acceso. Elimina rutas innecesarias y protege cada recurso con autenticación y reglas del servidor.",
-                url=base + "/robots.txt",
+                url=robots_url,
                 evidence="Disallow: " + ", ".join(sensitive[:8]),
             )
         )

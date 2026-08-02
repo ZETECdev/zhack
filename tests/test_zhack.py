@@ -1,13 +1,18 @@
 """Tests de ZHack contra el servidor local deliberadamente vulnerable."""
 
+import asyncio
 import socket
+import base64
 
 import pytest
 from aiohttp import web
 
 from zhack import scan_all
-from zhack.core.context import ScanOptions
+from zhack.checks import build_checks
+from zhack.core.context import ScanContext, ScanOptions
 from zhack.core.scanner import deep_scan, mass_scan
+from zhack.core.http_client import FetchResult, HttpClient
+from zhack.core.models import TargetResult
 from tests.vuln_server import build_app
 
 pytestmark = pytest.mark.asyncio
@@ -70,6 +75,8 @@ async def test_checks_activos_no_pasan_a_mass(server):
         assert "rpc_cors" not in checks, "rpc_cors es activo, no debe ejecutarse en mass"
         assert "rpc_methods" not in checks, "rpc_methods es activo, no debe ejecutarse en mass"
         assert "dex_rpc" not in checks, "dex_rpc es activo, no debe ejecutarse en mass"
+        assert "host_header" not in checks, "host_header es activo, no debe ejecutarse en mass"
+    assert "csrf" in {f.check for f in results[0].findings}, "CSRF es pasivo y debe funcionar en mass"
 
 
 async def test_scan_all_es_la_api_principal_y_ejecuta_todos_los_checks(server):
@@ -85,11 +92,9 @@ async def test_scan_all_es_la_api_principal_y_ejecuta_todos_los_checks(server):
     assert "cache_control" in checks, "debe revisar la caché de respuestas con sesión"
 
 
-async def test_checks_dex_detectan_slippage_allowance_permit_y_router_sin_bytecode():
+async def test_checks_dex_detectan_slippage_allowance_permit_y_router_sin_bytecode(tmp_path):
     from zhack.checks.active.dex_rpc import DexRpcCheck
     from zhack.checks.passive.dex_security import DexSecurityCheck
-    from zhack.core.http_client import FetchResult
-    from zhack.core.models import TargetResult
     from zhack.reporting.csv_report import write_csv
     from zhack.reporting.html_report import build_html
     from zhack.reporting.json_report import result_to_dict
@@ -143,9 +148,9 @@ async def test_checks_dex_detectan_slippage_allowance_permit_y_router_sin_byteco
     assert serialized_finding["attack_scenario"]
     assert serialized_finding["safe_validation"]
     assert "Attacker impact:" in build_html([TargetResult(url=ctx.url, findings=[finding])])
-    csv_path = "reports/test_dex_finding.csv"
-    write_csv([TargetResult(url=ctx.url, findings=[finding])], csv_path)
-    with open(csv_path, encoding="utf-8") as csv_file:
+    csv_path = tmp_path / "test_dex_finding.csv"
+    write_csv([TargetResult(url=ctx.url, findings=[finding])], str(csv_path))
+    with csv_path.open(encoding="utf-8") as csv_file:
         csv_text = csv_file.read()
     assert "attacker_impact" in csv_text
     assert "High-level scenario" in csv_text
@@ -484,3 +489,342 @@ async def test_targets_loader():
     assert normalize_url("http://x.com/search?q=1") == "http://x.com/search?q=1"
     assert normalize_url("ftp://x.com/file") == ""
     assert normalize_url("  ") == ""
+
+
+async def test_crawler_no_sale_del_mismo_host_a_otro_puerto():
+    from zhack.core.crawler import extract_candidate_urls, extract_forms
+
+    html = '<a href="/ok">ok</a><a href="http://example.com:8443/admin">other</a>'
+    found = extract_candidate_urls("http://example.com:8080/", html)
+    assert found == ["http://example.com:8080/ok"]
+    forms = extract_forms('<form action=/save method=post><textarea name=callback_url></textarea><select name="role"></select></form>')
+    assert forms == [("/save", "POST", ["callback_url", "role"])]
+
+
+async def test_nuevos_checks_pasivos_detectan_jwt_oauth_upload_y_ssrf():
+    header = base64.urlsafe_b64encode(b'{"alg":"none","typ":"JWT"}').decode().rstrip("=")
+    payload = base64.urlsafe_b64encode(b'{"sub":"1234567890"}').decode().rstrip("=")
+    html = f"""
+    <html><body>
+      <script>
+        const token = "{header}.{payload}.unsignedsig";
+        const oauth = "/oauth/authorize?response_type=token&client_id=demo";
+        const access_token = window.location.hash;
+      </script>
+      <form action="/upload" method="POST">
+        <input type="file" name="document">
+      </form>
+      <form action="/fetch" method="GET">
+        <input name="callback_url">
+      </form>
+    </body></html>
+    """
+
+    class FakeCtx:
+        url = "https://app.example/login"
+
+        def __init__(self):
+            self.findings = []
+
+        async def get_main(self):
+            return FetchResult(url=self.url, status=200, body=html.encode())
+
+        async def fetch(self, method, url, headers=None):
+            return FetchResult(url=url, status=404, body=b"")
+
+        def add(self, finding):
+            self.findings.append(finding)
+
+    from zhack.checks.passive.jwt_oauth import JwtOAuthCheck
+    from zhack.checks.passive.ssrf_hints import SsrfHintsCheck
+    from zhack.checks.passive.upload_surface import UploadSurfaceCheck
+
+    ctx = FakeCtx()
+    await JwtOAuthCheck().run(ctx)
+    titles = " ".join(f.title.lower() for f in ctx.findings)
+    assert "algoritmo none" in titles
+    assert "flujo implícito" in titles
+    assert "location.hash" in titles
+
+    ctx = FakeCtx()
+    await UploadSurfaceCheck().run(ctx)
+    assert any(f.check == "upload_surface" and f.severity.value == "medio" for f in ctx.findings)
+    assert all(f.manual_review for f in ctx.findings)
+
+    ctx = FakeCtx()
+    await SsrfHintsCheck().run(ctx)
+    assert ctx.findings and ctx.findings[0].check == "ssrf_hints"
+    assert ctx.findings[0].manual_review
+    assert ctx.findings[0].confidence == "baja"
+
+
+async def test_nuevos_checks_estan_registrados_y_no_se_ejecutan_en_mass_como_activos():
+    mass_names = {check.name for check in build_checks(mass=True, active=False)}
+    assert {"jwt_oauth", "upload_surface", "ssrf_hints"} <= mass_names
+    assert "sqli" not in mass_names
+    assert "xss" not in mass_names
+
+
+async def test_todos_los_checks_tienen_guidance_y_advisory():
+    from zhack.checks.english_guidance import _GUIDANCE
+    from zhack.reporting.en_advisories import advisory_for
+
+    for check in build_checks(active=True, mass=False):
+        assert check.name in _GUIDANCE, f"falta guidance para {check.name}"
+        assert advisory_for(check.name, "hallazgo").title != "Security weakness detected", (
+            f"falta advisory específico para {check.name}"
+        )
+
+
+async def test_host_header_detecta_reflexion_sin_seguir_redirects():
+    from zhack.checks.active.host_header import HostHeaderCheck
+
+    class FakeHttp:
+        def __init__(self):
+            self.calls = []
+
+        async def fetch(self, method, url, headers=None, allow_redirects=True):
+            self.calls.append((method, url, headers, allow_redirects))
+            return FetchResult(
+                url=url,
+                status=302,
+                headers={"location": "https://zhack-host-probe.example/reset"},
+            )
+
+    class FakeCtx:
+        url = "https://app.example/"
+        candidates = [url]
+
+        def __init__(self):
+            self.http = FakeHttp()
+            self.findings = []
+
+        def add(self, finding):
+            self.findings.append(finding)
+
+    ctx = FakeCtx()
+    await HostHeaderCheck().run(ctx)
+    assert ctx.findings and ctx.findings[0].check == "host_header"
+    assert ctx.findings[0].severity.value == "alto"
+    assert ctx.http.calls[0][0] == "GET"
+    assert ctx.http.calls[0][3] is False
+
+
+async def test_evidencia_y_urls_redactan_secretos():
+    from zhack.checks.passive.secret_scan import SecretScanCheck
+    from zhack.reporting.json_report import result_to_dict
+
+    secret = "sk_live_" + "51HZaXxExampleTestKey123456"
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature1234"
+    html = f'<script>const apiKey = "{secret}"; const token = "{jwt}";</script>'
+
+    class FakeCtx:
+        url = "https://app.example/?token=real-secret"
+
+        def __init__(self):
+            self.findings = []
+
+        async def get_main(self):
+            return FetchResult(url=self.url, status=200, body=html.encode())
+
+        def add(self, finding):
+            self.findings.append(finding)
+
+    ctx = FakeCtx()
+    await SecretScanCheck().run(ctx)
+    assert ctx.findings
+    serialized = str(result_to_dict(TargetResult(url=ctx.url, findings=ctx.findings)))
+    assert secret not in serialized
+    assert jwt not in serialized
+    assert "<REDACTED" in serialized
+
+
+async def test_context_fetch_acepta_url_sin_repetir_method():
+    class FakeHttp:
+        def __init__(self):
+            self.calls = []
+
+        async def fetch(self, method, url, headers=None):
+            self.calls.append((method, url, headers))
+            return FetchResult(url=url, status=200, body=b"ok")
+
+    http = FakeHttp()
+    ctx = ScanContext(
+        "https://app.example/login",
+        http,
+        ScanOptions(),
+        TargetResult(url="https://app.example/login"),
+    )
+    result = await ctx.fetch("https://app.example/profile")
+    assert result.ok
+    assert http.calls == [("GET", "https://app.example/profile", None)]
+
+
+async def test_http_client_no_reenvia_headers_sensibles_a_otro_host():
+    client = HttpClient(
+        custom_headers={
+            "Authorization": "Bearer secret",
+            "Cookie": "session=secret",
+            "X-Internal-Secret": "secret",
+        },
+        target_url="https://app.example/login",
+    )
+    same = client._headers_for("https://app.example/api", None)
+    external = client._headers_for("https://cdn.example/assets.js", {"Origin": "https://evil.example"})
+    assert same["Authorization"] == "Bearer secret"
+    assert same["Cookie"] == "session=secret"
+    assert "Authorization" not in client._headers_for("http://app.example/api", None)
+    assert "Authorization" not in external
+    assert "Cookie" not in external
+    assert "X-Internal-Secret" not in external
+    assert external["Origin"] == "https://evil.example"
+
+
+async def test_http_client_comparte_limitador_por_host_entre_clientes():
+    shared_hosts = {}
+    shared_lock = asyncio.Lock()
+    first = HttpClient(shared_host_sems=shared_hosts, shared_host_lock=shared_lock)
+    second = HttpClient(shared_host_sems=shared_hosts, shared_host_lock=shared_lock)
+    first_sem = await first._host_sem("example.com:443")
+    second_sem = await second._host_sem("example.com:443")
+    other_sem = await second._host_sem("example.com:8443")
+    assert first._host_sems is shared_hosts
+    assert second._host_sems is shared_hosts
+    assert first_sem is second_sem
+    assert other_sem is not first_sem
+
+
+async def test_csp_frame_ancestors_sustituye_x_frame_options():
+    from zhack.checks.passive.headers import SecurityHeadersCheck
+
+    class FakeCtx:
+        url = "https://app.example/"
+
+        def __init__(self):
+            self.findings = []
+
+        async def get_main(self):
+            return FetchResult(
+                url=self.url,
+                status=200,
+                headers={
+                    "content-security-policy": "default-src 'self'; frame-ancestors 'none'; style-src 'self' 'unsafe-inline'",
+                    "strict-transport-security": "max-age=31536000",
+                    "x-content-type-options": "nosniff",
+                    "referrer-policy": "strict-origin-when-cross-origin",
+                    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+                },
+                body=b"ok",
+            )
+
+        def add(self, finding):
+            self.findings.append(finding)
+
+    ctx = FakeCtx()
+    await SecurityHeadersCheck().run(ctx)
+    titles = " ".join(f.title for f in ctx.findings)
+    assert "Falta X-Frame-Options" not in titles
+    assert "unsafe-inline" not in titles
+
+
+async def test_tls_inspecciona_certificado_binario_y_wildcards(monkeypatch):
+    from zhack.core.tls import _hostname_matches, check_tls
+
+    cert = {"subjectAltName": (("DNS", "*.example.com"),)}
+    assert _hostname_matches("app.example.com", cert)
+    assert not _hostname_matches("deep.app.example.com", cert)
+
+    class FakeSSL:
+        def version(self):
+            return "TLSv1.2"
+
+        def getpeercert(self, binary_form=False):
+            return b"" if binary_form else {}
+
+    class FakeWriter:
+        def get_extra_info(self, name):
+            return FakeSSL() if name == "ssl_object" else None
+
+        def close(self):
+            pass
+
+        async def wait_closed(self):
+            pass
+
+    async def fake_open_connection(*args, **kwargs):
+        return None, FakeWriter()
+
+    monkeypatch.setattr(asyncio, "open_connection", fake_open_connection)
+    report = await check_tls("example.com", 443, timeout=1)
+    assert report.version == "TLSv1.2"
+    assert not report.insecure_version
+
+
+async def test_redirects_tls_y_host_scope():
+    assert HttpClient._allowed_redirect("http://app.example/", "https://app.example/")
+    assert HttpClient._allowed_redirect("https://app.example/a", "https://app.example/b")
+    assert not HttpClient._allowed_redirect("https://app.example/", "http://app.example/")
+    assert not HttpClient._allowed_redirect("https://app.example/", "https://cdn.example/")
+    assert not HttpClient._allowed_redirect("https://app.example/", "https://app.example:8443/")
+
+
+async def test_http_client_bloquea_redirect_externo_y_conserva_header_en_mismo_host():
+    external_seen = []
+    same_host_seen = []
+
+    async def external_capture(request):
+        external_seen.append(request.headers.get("Authorization"))
+        return web.Response(text="external")
+
+    external_app = web.Application()
+    external_app.router.add_get("/capture", external_capture)
+    external_runner = web.AppRunner(external_app)
+    await external_runner.setup()
+    external_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    external_socket.bind(("127.0.0.1", 0))
+    external_port = external_socket.getsockname()[1]
+    external_socket.close()
+    external_site = web.TCPSite(external_runner, "127.0.0.1", external_port)
+    await external_site.start()
+
+    async def external_redirect(request):
+        return web.Response(status=302, headers={"Location": f"http://127.0.0.1:{external_port}/capture"})
+
+    async def same_capture(request):
+        same_host_seen.append(request.headers.get("Authorization"))
+        return web.Response(text="same-host")
+
+    async def same_redirect(request):
+        return web.Response(status=302, headers={"Location": "/capture"})
+
+    target_app = web.Application()
+    target_app.router.add_get("/external", external_redirect)
+    target_app.router.add_get("/same", same_redirect)
+    target_app.router.add_get("/capture", same_capture)
+    target_runner = web.AppRunner(target_app)
+    await target_runner.setup()
+    target_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    target_socket.bind(("127.0.0.1", 0))
+    target_port = target_socket.getsockname()[1]
+    target_socket.close()
+    target_site = web.TCPSite(target_runner, "127.0.0.1", target_port)
+    await target_site.start()
+
+    try:
+        target = f"http://127.0.0.1:{target_port}/"
+        async with HttpClient(
+            timeout=2,
+            retries=0,
+            target_url=target,
+            custom_headers={"Authorization": "Bearer test-secret"},
+        ) as client:
+            external = await client.fetch("GET", target + "external")
+            same = await client.fetch("GET", target + "same")
+        assert external.status == 302
+        assert external.final_url == target + "external"
+        assert external_seen == []
+        assert same.status == 200
+        assert same_host_seen == ["Bearer test-secret"]
+    finally:
+        await target_runner.cleanup()
+        await external_runner.cleanup()

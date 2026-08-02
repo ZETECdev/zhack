@@ -20,6 +20,7 @@ class SecurityHeadersCheck(BaseCheck):
             return
 
         headers = res.headers
+        csp = headers.get("content-security-policy", "")
 
         checks = [
             (
@@ -67,11 +68,13 @@ class SecurityHeadersCheck(BaseCheck):
         ]
 
         for header_name, severity, title, description, remediation in checks:
-            if header_name not in headers:
+            if header_name not in headers and not (
+                header_name == "x-frame-options" and "frame-ancestors" in csp
+            ):
                 ctx.add(self.make(ctx, severity, title, description, remediation))
 
-        csp = headers.get("content-security-policy", "")
-        if "unsafe-inline" in csp:
+        script_policy = re.search(r"(?:^|;)\s*(?:script-src|default-src)\s+([^;]+)", csp, re.I)
+        if script_policy and "unsafe-inline" in script_policy.group(1):
             ctx.add(
                 self.make(
                     ctx,

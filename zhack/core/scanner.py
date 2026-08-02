@@ -27,6 +27,7 @@ async def deep_scan(url: str, opts: ScanOptions) -> TargetResult:
         global_concurrency=opts.concurrency,
         max_body=opts.max_body,
         custom_headers=opts.custom_headers,
+        target_url=url,
     ) as http:
         ctx = ScanContext(url, http, opts, result)
         if opts.active:
@@ -46,6 +47,9 @@ async def mass_scan(
 ) -> List[TargetResult]:
     """Escaneo masivo: una web por objetivo, checks pasivos, alta concurrencia."""
     sem = asyncio.Semaphore(opts.concurrency)
+    shared_global_sem = asyncio.Semaphore(opts.concurrency)
+    shared_host_sems: dict[str, asyncio.Semaphore] = {}
+    shared_host_lock = asyncio.Lock()
 
     async def worker(url: str) -> TargetResult:
         async with sem:
@@ -56,6 +60,10 @@ async def mass_scan(
                     global_concurrency=opts.concurrency,
                     max_body=opts.max_body,
                     custom_headers=opts.custom_headers,
+                    target_url=url,
+                    shared_global_sem=shared_global_sem,
+                    shared_host_sems=shared_host_sems,
+                    shared_host_lock=shared_host_lock,
                 ) as http:
                     ctx = ScanContext(url, http, opts, result)
                     checks = build_checks(active=False, mass=True)
@@ -76,6 +84,9 @@ async def batch_scan(
 ) -> List[TargetResult]:
     """Escaneo profundo por lotes: deep scan + activos contra múltiples webs."""
     sem = asyncio.Semaphore(opts.concurrency)
+    shared_global_sem = asyncio.Semaphore(opts.concurrency)
+    shared_host_sems: dict[str, asyncio.Semaphore] = {}
+    shared_host_lock = asyncio.Lock()
 
     async def worker(url: str) -> TargetResult:
         async with sem:
@@ -86,6 +97,10 @@ async def batch_scan(
                     global_concurrency=opts.concurrency,
                     max_body=opts.max_body,
                     custom_headers=opts.custom_headers,
+                    target_url=url,
+                    shared_global_sem=shared_global_sem,
+                    shared_host_sems=shared_host_sems,
+                    shared_host_lock=shared_host_lock,
                 ) as http:
                     ctx = ScanContext(url, http, opts, result)
                     main = await ctx.get_main()

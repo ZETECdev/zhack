@@ -174,6 +174,26 @@ _GUIDANCE = {
         "High-level scenario: an attacker operates a look-alike page that requests the recovery phrase and immediately drains every submitted wallet.",
         "Never submit anything to such a page; if it impersonates the company, take it down, warn users, and report the domain; if it is the company's own page, remove the field and treat any submitted data as compromised.",
     ),
+    "host_header": (
+        "Trusting an attacker-controlled Host header can generate poisoned redirects, links, password-reset URLs, or cacheable content under an attacker domain.",
+        "High-level scenario: an attacker supplies a crafted Host value and a proxy or application reflects it into a response that is later sent to users or cached.",
+        "Confirm only with a read-only marker on staging, allowlist canonical hosts, avoid deriving absolute URLs from request headers, review proxy configuration, and purge affected caches.",
+    ),
+    "jwt_oauth": (
+        "Weak JWT or OAuth browser flows may expose bearer tokens, allow unsigned tokens, or make replay and account impersonation easier.",
+        "High-level scenario: an attacker captures a token from a URL or exploits a backend that accepts an unsigned JWT, then presents it through the normal authentication flow.",
+        "Review the flow with synthetic accounts, reject alg=none, migrate OAuth implicit flows to Authorization Code with PKCE, avoid tokens in URLs, and revoke exposed tokens before retesting.",
+    ),
+    "upload_surface": (
+        "An unsafe file-upload surface may allow sensitive files to cross trust boundaries or reach executable web locations when server-side validation is weak.",
+        "High-level scenario: an attacker or user submits a crafted file to an upload endpoint and relies on missing transport, type, size, storage, or authorization controls.",
+        "Review uploads in staging without submitting harmful files, validate content server-side, store outside the webroot, enforce size and authorization limits, and retest with inert fixtures.",
+    ),
+    "ssrf_hints": (
+        "A user-controlled URL or remote-fetch input may allow the server to reach internal services, cloud metadata, or other restricted networks if validation is incomplete.",
+        "High-level scenario: an attacker identifies a remote-fetch parameter and attempts to make the backend cross its network trust boundary; this scanner performs no such request.",
+        "Use strict host and scheme allowlists, block private/link-local destinations and unsafe redirects, apply egress filtering, and validate the complete server-side data flow.",
+    ),
 }
 
 

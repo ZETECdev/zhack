@@ -20,6 +20,7 @@ _SEV_EN = {
     Severity.INFO: "INFO",
 }
 _SEV_ORDER = [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]
+_CONF_EN = {"alta": "high", "media": "medium", "baja": "low"}
 
 
 def _clean(text: object) -> str:
@@ -97,6 +98,8 @@ def build_en_markdown(results: List[TargetResult], generated: str = "") -> str:
                     f"- **Affected asset:** {f.url or r.url}",
                     f"- **Check:** `{f.check}`",
                     f"- **Scanner title:** {_clean(f.title)}",
+                    f"- **Scanner confidence:** {_CONF_EN.get(f.confidence, _clean(f.confidence))}",
+                    f"- **Manual review:** {'yes' if f.manual_review else 'no'}",
                 ]
             )
             if f.evidence:

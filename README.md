@@ -96,7 +96,7 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | TLS < 1.2 / SSLv3 | mass + deep | alto |
 | Certificado caducado / autofirmado / hostname incorrecto | mass + deep | crítico/alto |
 | Cabeceras ausentes (CSP, HSTS, X-Frame-Options, nosniff...) | mass + deep | medio/bajo |
-| Cookies sin Secure / HttpOnly / SameSite=None | mass + deep | medio/alto |
+| Cookies sin Secure / HttpOnly / SameSite explícito | mass + deep | medio/alto |
 | Respuestas con cookies de sesión sin protección de caché | mass + deep | bajo/medio |
 | Archivos expuestos (`.env`, `.git`, backups, `phpinfo`, volcados SQL...) | mass + deep | crítico |
 | Listado de directorios | mass + deep | medio |
@@ -113,6 +113,9 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | Formularios de contraseña enviados por HTTP | mass + deep | alto |
 | Rutas internas sensibles reveladas en `robots.txt` | mass + deep | info |
 | Posible DOM XSS (fuente controlable + sink peligroso) | mass + deep | medio |
+| JWT con `alg=none`, OAuth implícito o tokens en `location.hash` | mass + deep | alto/medio |
+| Formularios de subida sin transporte/enctype/restricciones declaradas | mass + deep | alto/medio/bajo |
+| Parámetros URL/callback/webhook con posible SSRF (solo heurística) | mass + deep | medio |
 | Riesgos DEX: `amountOutMin=0`, slippage extrema, approvals ilimitadas y `permit` sin expiración | mass + deep | alto |
 | Patrones peligrosos en Solidity expuesto (`tx.origin`, `selfdestruct`, `delegatecall`, reentrancia, oracle spot) | mass + deep | alto/crítico |
 | Inyección SQL (detección) | deep `--active` | crítico |
@@ -120,6 +123,7 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 | Redirección abierta | deep `--active` | medio |
 | Path traversal | deep `--active` | crítico |
 | CORS mal configurado | deep `--active` | alto/medio |
+| Host header reflejado en redirects o contenido | deep `--active` | alto/medio |
 | Métodos HTTP peligrosos (TRACE, PUT, DELETE) | deep `--active` | alto/medio |
 | Endpoints RPC con CORS mal configurado / acceso público | deep `--active` | alto/medio |
 | Nodos RPC públicos accesibles y métodos JSON-RPC expuestos (`eth_accounts`, etc.) | deep `--active` | alto/info |
@@ -130,7 +134,11 @@ Verás detectados: `.env`/`.git`/backups expuestos, SQLi, XSS reflejado, redirec
 - **Solo peticiones de LECTURA** (`GET`/`HEAD`/`OPTIONS`). Jamás escribe, borra ni modifica nada en una web.
 - **Payloads activos inofensivos**: solo detección (comillas, marcadores de texto). Nunca `UPDATE`/`DELETE`/`DROP`, nunca stacked queries, nunca código que se ejecute en la víctima.
 - **Checks DEX sin mutaciones**: `dex_rpc` solo consulta `eth_getCode` mediante `GET`; no firma transacciones ni llama métodos que cambien estado.
-- **Límites de concurrencia** por host (5 peticiones simultáneas) y global, con timeouts: no satura las webs escaneadas.
+- **Límites de concurrencia** por host (5 peticiones simultáneas) y global, compartidos entre objetivos del mismo escaneo, con timeouts: no satura las webs escaneadas.
+- **Headers autenticados aislados**: cookies, `Authorization` y API keys no se envían a scripts, CDNs, buckets, RPCs ni redirects de otros hosts.
+- **Redirects acotados**: solo se siguen redirects del mismo host, además del upgrade HTTP→HTTPS; nunca se sigue una degradación HTTPS→HTTP ni un salto a otro host.
+- **Evidencia redactada**: tokens, JWT, claves privadas, AWS keys y valores sensibles en URLs se ocultan antes de escribir JSON, HTML, Markdown o CSV.
+- Cada hallazgo incluye **confianza** y marca de **revisión manual** cuando es una heurística estática.
 - Confirmación de autorización obligatoria al arrancar.
 
 Los checks DEX son análisis de superficie y heurísticas. Pueden descubrir configuraciones frontend peligrosas,
@@ -157,6 +165,9 @@ tests/test_zhack.py         # tests (pytest)
 ```bash
 python -m pytest tests -v
 ```
+
+La suite incluye servidor vulnerable local, página segura, checks Web3, GraphQL/RPC,
+redacción de secretos, TLS simulado, redirects cross-host y aislamiento de headers.
 
 ## Reparación
 

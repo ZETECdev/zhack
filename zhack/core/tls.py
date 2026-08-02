@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import os
 import re
 import ssl
+import tempfile
 import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -58,9 +60,31 @@ def _hostname_matches(host: str, cert) -> bool:
             return True
         if entry.startswith("*."):
             suffix = entry[1:]
-            if host.endswith(suffix) and host[: -len(suffix)].count(".") >= 1:
+            prefix = host[: -len(suffix)]
+            if host.endswith(suffix) and prefix and "." not in prefix:
                 return True
     return False
+
+
+def _decode_peer_certificate(binary_cert: bytes) -> dict:
+    """Decodifica el certificado DER usando solo la biblioteca estándar."""
+    if not binary_cert:
+        return {}
+    path = ""
+    try:
+        pem = ssl.DER_cert_to_PEM_cert(binary_cert)
+        with tempfile.NamedTemporaryFile("w", encoding="ascii", suffix=".pem", delete=False) as fh:
+            fh.write(pem)
+            path = fh.name
+        return ssl._ssl._test_decode_cert(path)  # type: ignore[attr-defined]
+    except (OSError, ssl.SSLError, TypeError, ValueError):
+        return {}
+    finally:
+        if path:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
 
 async def check_tls(host: str, port: int = 443, timeout: float = 10.0) -> TLSReport:
@@ -91,7 +115,6 @@ async def check_tls(host: str, port: int = 443, timeout: float = 10.0) -> TLSRep
                 asyncio.open_connection(host, port, ssl=ctx_old, server_hostname=host), timeout=timeout
             )
             ssl_obj = writer.get_extra_info("ssl_object")
-            report.insecure_version = True
         except (ssl.SSLError, OSError, asyncio.TimeoutError, ConnectionError) as e:
             report.ok = False
             report.error = f"handshake TLS fallido: {type(e).__name__}"
@@ -104,7 +127,8 @@ async def check_tls(host: str, port: int = 443, timeout: float = 10.0) -> TLSRep
 
     if writer:
         try:
-            cert = ssl_obj.getpeercert()
+            raw_cert = ssl_obj.getpeercert(binary_form=True)
+            cert = raw_cert if isinstance(raw_cert, dict) else _decode_peer_certificate(raw_cert)
             if cert:
                 report.subject = str(cert.get("subject", ""))
                 report.issuer = str(cert.get("issuer", ""))

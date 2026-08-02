@@ -21,6 +21,8 @@ def write_csv(results: List[TargetResult], path: str) -> None:
                 "attacker_impact",
                 "attack_scenario",
                 "safe_validation",
+                "confidence",
+                "manual_review",
             ]
         )
         for r in results:
@@ -36,5 +38,7 @@ def write_csv(results: List[TargetResult], path: str) -> None:
                         f.attacker_impact,
                         f.attack_scenario,
                         f.safe_validation,
+                        f.confidence,
+                        f.manual_review,
                     ]
                 )

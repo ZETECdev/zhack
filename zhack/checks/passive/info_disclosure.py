@@ -61,7 +61,7 @@ class InfoDisclosureCheck(BaseCheck):
                     )
                 )
 
-        probe = await ctx.http.fetch("GET", ctx.url.rstrip("/") + "/z_hack_error_probe_not_exists_123456")
+        probe = await ctx.http.fetch("GET", ctx.url_for("/z_hack_error_probe_not_exists_123456"))
         if probe.ok and probe.body and _STACK_TRACE_RE.search(probe.text):
             ctx.add(
                 self.make(

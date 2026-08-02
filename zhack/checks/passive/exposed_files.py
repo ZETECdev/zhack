@@ -199,9 +199,9 @@ class ExposedFilesCheck(BaseCheck):
     mass = True
 
     async def run(self, ctx) -> None:
-        base = ctx.url.rstrip("/")
         for path, pattern, severity, title, description, remediation in _EXPOSED_PATHS:
-            res = await ctx.http.fetch("GET", base + path)
+            probe_url = ctx.url_for(path)
+            res = await ctx.http.fetch("GET", probe_url)
             if res.ok and res.status == 200 and not _looks_like_html(res.body) and _matches_pattern(pattern, res.body):
                 ctx.add(
                     self.make(
@@ -210,13 +210,14 @@ class ExposedFilesCheck(BaseCheck):
                         title,
                         description,
                         remediation,
-                        url=base + path,
+                        url=probe_url,
                         evidence=res.body[:200].decode("utf-8", errors="replace"),
                     )
                 )
 
         for path in _LISTING_PATHS:
-            res = await ctx.http.fetch("GET", base + path)
+            probe_url = ctx.url_for(path)
+            res = await ctx.http.fetch("GET", probe_url)
             if not res.ok:
                 continue
             body = res.body.lower()
@@ -228,12 +229,13 @@ class ExposedFilesCheck(BaseCheck):
                         f"Listado de directorio activo ({path})",
                         "El servidor muestra el listado de archivos de un directorio, exponiendo la estructura del sitio.",
                         "Desactiva el autoindex (Options -Indexes en Apache, autoindex off en nginx).",
-                        url=base + path,
+                        url=probe_url,
                     )
                 )
 
         if not ctx.opts.mass:
-            res = await ctx.http.fetch("GET", base + "/.well-known/security.txt")
+            probe_url = ctx.url_for("/.well-known/security.txt")
+            res = await ctx.http.fetch("GET", probe_url)
             if not (res.ok and res.status == 200 and b"contact" in res.body.lower()):
                 ctx.add(
                     self.make(

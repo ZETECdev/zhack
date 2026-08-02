@@ -61,11 +61,13 @@ def build_html(results: List[TargetResult], generated: str = "") -> str:
                    <td>
                      <strong>{_esc(f.title)}</strong>
                      <div class="desc">{_esc(f.description)}</div>
-                     <div class="en-report">
-                       <div><strong>Attacker impact:</strong> {_esc(f.attacker_impact)}</div>
-                       <div><strong>High-level attack scenario:</strong> {_esc(f.attack_scenario)}</div>
-                       <div><strong>Safe validation and remediation:</strong> {_esc(f.safe_validation)}</div>
-                     </div>
+                      <div class="en-report">
+                        <div><strong>Attacker impact:</strong> {_esc(f.attacker_impact)}</div>
+                        <div><strong>High-level attack scenario:</strong> {_esc(f.attack_scenario)}</div>
+                        <div><strong>Safe validation and remediation:</strong> {_esc(f.safe_validation)}</div>
+                        <div><strong>Confianza:</strong> {_esc(f.confidence)}
+                          {" · requiere revisión manual" if f.manual_review else ""}</div>
+                      </div>
                      {"<div class='evid'>Evidencia: <code>" + _esc(f.evidence) + "</code></div>" if f.evidence else ""}
                     {"<div class='u'>URL: <code>" + _esc(f.url) + "</code></div>" if f.url and f.url != r.url else ""}
                   </td>

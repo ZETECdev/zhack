@@ -121,31 +121,32 @@ class EndpointExposureCheck(BaseCheck):
     mass = True
 
     async def run(self, ctx) -> None:
-        base = ctx.url.rstrip("/")
         main = await ctx.get_main()
         main_sample = main.text[:500].encode("utf-8", errors="replace") if main.ok else b""
 
         for path, expected, severity, title, description, remediation in _PATHS:
-            res = await ctx.fetch("GET", base + path)
+            probe_url = ctx.url_for(path)
+            res = await ctx.fetch("GET", probe_url)
             if res.status in (404, None):
                 continue
             if expected is not None:
                 if res.status == 200 and res.body and re.search(expected, res.body, re.I):
                     ctx.add(
                         self.make(ctx, severity, title, description, remediation,
-                                  url=base + path, evidence=f"HTTP {res.status}")
+                                  url=probe_url, evidence=f"HTTP {res.status}")
                     )
                 continue
             # Heurística: ruta admin real solo si NO es el fallback de la SPA
             if res.status == 200 and not _is_spa_fallback(res.body, main_sample):
                 ctx.add(
                     self.make(ctx, severity, title, description, remediation,
-                              url=base + path, evidence=f"HTTP {res.status}")
+                              url=probe_url, evidence=f"HTTP {res.status}")
                 )
 
         # GraphQL se detecta por respuesta 400/405 (ruta real, GET no permitido) con cuerpo NO html
         for path in ("/graphql", "/graphiql"):
-            res = await ctx.fetch("GET", base + path)
+            probe_url = ctx.url_for(path)
+            res = await ctx.fetch("GET", probe_url)
             if res.status in (404, None):
                 continue
             content_type = (res.headers.get("content-type", "") if res.headers else "") or ""
@@ -161,10 +162,10 @@ class EndpointExposureCheck(BaseCheck):
                         "Endpoint GraphQL expuesto",
                         "Se detecta un endpoint GraphQL accesible públicamente; puede revelar el esquema y ampliar la superficie de ataque de la API.",
                         "Protege GraphQL con autenticación, limita la introspección en producción y aplica límites de velocidad.",
-                              url=base + path, evidence=f"HTTP {res.status}")
+                              url=probe_url, evidence=f"HTTP {res.status}")
                 )
                 probe = await ctx.fetch(
-                    "GET", base + path + "?query=%7B__schema%7Btypes%7Bname%7D%7D%7D"
+                    "GET", probe_url + "?query=%7B__schema%7Btypes%7Bname%7D%7D%7D"
                 )
                 if probe.status == 200 and probe.body and b'"__schema"' in probe.body:
                     ctx.add(
@@ -174,7 +175,7 @@ class EndpointExposureCheck(BaseCheck):
                             "Introspección de GraphQL habilitada en producción",
                             "El endpoint responde a consultas de introspección (__schema): cualquiera puede descargar el esquema completo de la API (tipos, queries, mutations) y usarlo para localizar operaciones privilegiadas o campos sensibles.",
                             "Desactiva la introspección en producción, aplica autenticación y control de acceso por campo, y limita la profundidad/complejidad de las consultas.",
-                            url=base + path,
+                            url=probe_url,
                             evidence="La consulta {__schema{types{name}}} devolvió datos del esquema",
                         )
                     )

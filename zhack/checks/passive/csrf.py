@@ -15,7 +15,7 @@ class CSRFCheck(BaseCheck):
     """Detecta formularios sin protección CSRF."""
 
     name = "csrf"
-    mass = False
+    mass = True
 
     async def run(self, ctx) -> None:
         main = await ctx.get_main()

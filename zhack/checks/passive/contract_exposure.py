@@ -90,11 +90,11 @@ class ContractExposureCheck(BaseCheck):
                 )
             )
 
-        base = ctx.url.rstrip("/")
         for path, expected, severity, title, description, remediation in _CONFIG_PATHS:
-            res = await ctx.fetch("GET", base + path)
+            probe_url = ctx.url_for(path)
+            res = await ctx.fetch("GET", probe_url)
             if res.ok and res.status == 200 and res.body and re.search(expected, res.body, re.I):
                 ctx.add(
                     self.make(ctx, severity, title, description, remediation,
-                              url=base + path, evidence=f"HTTP 200")
+                              url=probe_url, evidence=f"HTTP 200")
                 )

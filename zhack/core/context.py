@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+from urllib.parse import urljoin, urlparse
 
 from zhack.core.http_client import FetchResult, HttpClient
 from zhack.core.models import Finding, TargetResult
@@ -33,8 +34,18 @@ class ScanContext:
         self._main_lock = asyncio.Lock()
         self._fetch_cache: dict = {}
 
+    def url_for(self, path: str) -> str:
+        """Construye una ruta dentro del prefijo explícito del objetivo."""
+        parsed = urlparse(self.url)
+        scope_path = parsed.path.rstrip("/") + "/"
+        scope_url = f"{parsed.scheme}://{parsed.netloc}{scope_path}"
+        return urljoin(scope_url, path.lstrip("/"))
+
     async def fetch(self, method: str = "GET", url: str = "", headers: Optional[dict] = None) -> FetchResult:
         """Fetch con caché en memoria (solo GET sin headers personalizados)."""
+        if not url and method.upper() not in ("GET", "HEAD", "OPTIONS"):
+            url, method = method, "GET"
+        method = method.upper()
         url = url or self.url
         if method == "GET" and not headers:
             cached = self._fetch_cache.get(url)

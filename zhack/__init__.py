@@ -6,6 +6,6 @@ Solo realiza peticiones de LECTURA (GET/HEAD/OPTIONS) y jamás modifica una web.
 
 from zhack.core.scanner import scan_all, scan_all_sync
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 __all__ = ["scan_all", "scan_all_sync", "__version__"]

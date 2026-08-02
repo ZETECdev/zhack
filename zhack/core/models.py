@@ -40,6 +40,8 @@ class Finding:
     attacker_impact: str = ""
     attack_scenario: str = ""
     safe_validation: str = ""
+    confidence: str = "alta"
+    manual_review: bool = False
 
 
 @dataclass

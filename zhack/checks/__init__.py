@@ -17,6 +17,7 @@ from zhack.checks.passive.form_security import FormSecurityCheck
 from zhack.checks.passive.headers import SecurityHeadersCheck
 from zhack.checks.passive.https import HTTPSCheck
 from zhack.checks.passive.info_disclosure import InfoDisclosureCheck
+from zhack.checks.passive.jwt_oauth import JwtOAuthCheck
 from zhack.checks.passive.mixed_content import MixedContentCheck
 from zhack.checks.passive.robots import RobotsDisclosureCheck
 from zhack.checks.passive.secret_scan import SecretScanCheck
@@ -27,10 +28,13 @@ from zhack.checks.passive.tls_check import TLSCheck
 from zhack.checks.passive.wallet_security import WalletSecurityCheck
 from zhack.checks.passive.web3_supply_chain import Web3SupplyChainCheck
 from zhack.checks.passive.bucket_exposure import BucketExposureCheck
+from zhack.checks.passive.upload_surface import UploadSurfaceCheck
+from zhack.checks.passive.ssrf_hints import SsrfHintsCheck
 
 from zhack.checks.active.cors import CORSCheck
 from zhack.checks.active.dex_rpc import DexRpcCheck
 from zhack.checks.active.http_methods import HTTPMethodsCheck
+from zhack.checks.active.host_header import HostHeaderCheck
 from zhack.checks.active.open_redirect import OpenRedirectCheck
 from zhack.checks.active.rpc_cors import RpcCorsCheck
 from zhack.checks.active.rpc_methods import RpcMethodsCheck
@@ -46,6 +50,7 @@ _ALL_CHECK_CLASSES: List[type] = [
     CacheControlCheck,
     ExposedFilesCheck,
     InfoDisclosureCheck,
+    JwtOAuthCheck,
     TechFingerprintCheck,
     MixedContentCheck,
     FormSecurityCheck,
@@ -63,6 +68,8 @@ _ALL_CHECK_CLASSES: List[type] = [
     WalletSecurityCheck,
     Web3SupplyChainCheck,
     BucketExposureCheck,
+    UploadSurfaceCheck,
+    SsrfHintsCheck,
     SQLiCheck,
     ReflectedXSSCheck,
     OpenRedirectCheck,
@@ -70,6 +77,7 @@ _ALL_CHECK_CLASSES: List[type] = [
     CORSCheck,
     DexRpcCheck,
     HTTPMethodsCheck,
+    HostHeaderCheck,
     RpcCorsCheck,
     RpcMethodsCheck,
 ]
